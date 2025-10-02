@@ -1,0 +1,11 @@
+/vendor/
+/storage/*.log
+/storage/logs/
+/storage/cache/
+/.env
+/.env.local
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+config/config.local.php
