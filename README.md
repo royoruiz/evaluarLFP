@@ -1,3 +1,4 @@
+
 # Aplicación MVC en PHP con MySQL
 
 Este proyecto es un ejemplo sencillo de una aplicación PHP que implementa el patrón Modelo-Vista-Controlador (MVC) con autenticación de usuarios utilizando MySQL como base de datos y estilos basados en Bootstrap.
@@ -36,11 +37,11 @@ Asegúrate de crear la base de datos indicada en `DB_NAME` si no existe. Al inic
 app/
   controllers/   Controladores de la aplicación.
   core/          Componentes base (Router, App, Database, etc.).
-  models/        Modelos que interactúan con la base de datos.
+  models/        Modelos que interactúan con DuckDB.
   views/         Plantillas de la interfaz usando Bootstrap.
 config/          Configuración global.
 public/          Punto de entrada público (`index.php`).
-storage/         Carpeta disponible para recursos adicionales si se necesitan.
+storage/         Archivos de base de datos DuckDB.
 ```
 
 ## Funcionalidades

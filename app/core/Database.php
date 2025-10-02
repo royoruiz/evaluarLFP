@@ -7,6 +7,7 @@ class Database
     public static function getConnection(): \PDO
     {
         if (self::$connection === null) {
+
             $dsn = sprintf(
                 'mysql:host=%s;port=%s;dbname=%s;charset=%s',
                 DB_HOST,

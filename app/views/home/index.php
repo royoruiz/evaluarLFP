@@ -1,4 +1,5 @@
 <h1 class="h3 mb-3">Bienvenido, <?= htmlspecialchars($user['name']) ?></h1>
+
 <p class="text-muted">Has iniciado sesión correctamente en la aplicación MVC con MySQL.</p>
 <div class="mt-4">
     <h2 class="h5">Próximos pasos</h2>
