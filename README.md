@@ -20,6 +20,7 @@ La aplicación se configura mediante variables de entorno o modificando `config/
 - `DB_CHARSET` (por defecto `utf8mb4`)
 - `BASE_URL` (por defecto `/`)
 
+
 Asegúrate de crear la base de datos indicada en `DB_NAME` si no existe. Al iniciar la aplicación se creará automáticamente la tabla `users` si aún no está presente.
 
 ## Puesta en marcha

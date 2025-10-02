@@ -3,6 +3,7 @@
 define('BASE_PATH', dirname(__DIR__));
 define('VIEW_PATH', BASE_PATH . '/app/views');
 
+
 $defaults = [
     'DB_HOST' => getenv('DB_HOST') ?: '127.0.0.1',
     'DB_PORT' => getenv('DB_PORT') ?: '3306',
@@ -27,3 +28,4 @@ foreach ($defaults as $constant => $value) {
         define($constant, $value);
     }
 }
+
