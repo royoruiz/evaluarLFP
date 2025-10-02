@@ -1,11 +1,26 @@
-# Aplicación MVC en PHP con DuckDB
 
-Este proyecto es un ejemplo sencillo de una aplicación PHP que implementa el patrón Modelo-Vista-Controlador (MVC) con autenticación de usuarios utilizando DuckDB como base de datos y estilos basados en Bootstrap.
+# Aplicación MVC en PHP con MySQL
+
+Este proyecto es un ejemplo sencillo de una aplicación PHP que implementa el patrón Modelo-Vista-Controlador (MVC) con autenticación de usuarios utilizando MySQL como base de datos y estilos basados en Bootstrap.
 
 ## Requisitos
 
-- PHP 8.2 o superior con la extensión `pdo_duckdb` habilitada.
+- PHP 8.2 o superior con la extensión `pdo_mysql` habilitada.
+- Un servidor MySQL accesible con una base de datos disponible para la aplicación.
 - Composer opcional si deseas añadir dependencias adicionales.
+
+## Configuración
+
+La aplicación se configura mediante variables de entorno o modificando `config/config.php`. Los valores disponibles son:
+
+- `DB_HOST` (por defecto `127.0.0.1`)
+- `DB_PORT` (por defecto `3306`)
+- `DB_NAME` (por defecto `mvc_app`)
+- `DB_USER` (por defecto `root`)
+- `DB_PASS` (cadena vacía por defecto)
+- `DB_CHARSET` (por defecto `utf8mb4`)
+
+Asegúrate de crear la base de datos indicada en `DB_NAME` si no existe. Al iniciar la aplicación se creará automáticamente la tabla `users` si aún no está presente.
 
 ## Puesta en marcha
 
@@ -15,8 +30,6 @@ Este proyecto es un ejemplo sencillo de una aplicación PHP que implementa el pa
    php -S localhost:8000 -t public
    ```
 3. Accede a `http://localhost:8000` en tu navegador.
-
-La primera ejecución creará automáticamente el archivo de base de datos `storage/app.duckdb` y la tabla `users`.
 
 ## Estructura del proyecto
 

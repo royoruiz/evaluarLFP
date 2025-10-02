@@ -7,13 +7,22 @@ class Database
     public static function getConnection(): \PDO
     {
         if (self::$connection === null) {
-            $dsn = 'duckdb:' . DB_PATH;
+
+            $dsn = sprintf(
+                'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+                DB_HOST,
+                DB_PORT,
+                DB_NAME,
+                DB_CHARSET
+            );
+
             try {
-                self::$connection = new \PDO($dsn);
-                self::$connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+                self::$connection = new \PDO($dsn, DB_USER, DB_PASS, [
+                    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                ]);
                 self::migrate();
             } catch (\PDOException $exception) {
-                throw new RuntimeException('No se pudo conectar a DuckDB: ' . $exception->getMessage());
+                throw new RuntimeException('No se pudo conectar a MySQL: ' . $exception->getMessage());
             }
         }
 
@@ -24,12 +33,12 @@ class Database
     {
         $schema = <<<SQL
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            name VARCHAR NOT NULL,
-            email VARCHAR NOT NULL UNIQUE,
-            password VARCHAR NOT NULL,
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         SQL;
 
         self::$connection->exec($schema);
