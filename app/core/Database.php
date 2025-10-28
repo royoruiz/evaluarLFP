@@ -64,14 +64,57 @@ class Database
         CREATE TABLE IF NOT EXISTS user_modules (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             user_id INT UNSIGNED NOT NULL,
+            module_code CHAR(5) DEFAULT NULL,
             module_name VARCHAR(255) NOT NULL,
+            units_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            creation_state VARCHAR(32) NOT NULL DEFAULT 'seleccion',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_user_modules_user
                 FOREIGN KEY (user_id) REFERENCES users(id)
                 ON DELETE CASCADE,
-            INDEX idx_user_modules_user (user_id)
+            INDEX idx_user_modules_user (user_id),
+            INDEX idx_user_modules_module (module_code)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         SQL;
+
+        $userModuleTableMigration = function (\PDO $connection): void {
+            $columnExistsQuery = static function (string $column) use ($connection): bool {
+                $query = <<<SQL
+                SELECT COUNT(*)
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'user_modules'
+                  AND COLUMN_NAME = :column
+                SQL;
+
+                $statement = $connection->prepare($query);
+                $statement->execute(['column' => $column]);
+
+                return (int) $statement->fetchColumn() > 0;
+            };
+
+            if (!$columnExistsQuery('module_code')) {
+                $connection->exec(<<<SQL
+                ALTER TABLE user_modules
+                    ADD COLUMN module_code CHAR(5) DEFAULT NULL AFTER user_id,
+                    ADD INDEX idx_user_modules_module (module_code);
+                SQL);
+            }
+
+            if (!$columnExistsQuery('units_count')) {
+                $connection->exec(<<<SQL
+                ALTER TABLE user_modules
+                    ADD COLUMN units_count TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER module_name;
+                SQL);
+            }
+
+            if (!$columnExistsQuery('creation_state')) {
+                $connection->exec(<<<SQL
+                ALTER TABLE user_modules
+                    ADD COLUMN creation_state VARCHAR(32) NOT NULL DEFAULT 'seleccion' AFTER units_count;
+                SQL);
+            }
+        };
 
         $userModuleEvaluationsTable = <<<SQL
         CREATE TABLE IF NOT EXISTS user_module_evaluations (
@@ -148,13 +191,50 @@ class Database
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         SQL;
 
+        $userModuleUnitsTable = <<<SQL
+        CREATE TABLE IF NOT EXISTS user_module_units (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_module_id INT UNSIGNED NOT NULL,
+            unit_number TINYINT UNSIGNED NOT NULL,
+            unit_label VARCHAR(100) NOT NULL,
+            trimester_1 TINYINT(1) NOT NULL DEFAULT 0,
+            trimester_2 TINYINT(1) NOT NULL DEFAULT 0,
+            trimester_3 TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_user_module_units_module
+                FOREIGN KEY (user_module_id) REFERENCES user_modules(id)
+                ON DELETE CASCADE,
+            UNIQUE KEY uniq_user_module_unit (user_module_id, unit_number)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        SQL;
+
+        $userModuleCriteriaTable = <<<SQL
+        CREATE TABLE IF NOT EXISTS user_module_unit_criteria (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_module_unit_id INT UNSIGNED NOT NULL,
+            criteria_code VARCHAR(20) NOT NULL,
+            weight DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_user_module_criteria_unit
+                FOREIGN KEY (user_module_unit_id) REFERENCES user_module_units(id)
+                ON DELETE CASCADE,
+            CONSTRAINT fk_user_module_criteria_criterion
+                FOREIGN KEY (criteria_code) REFERENCES criterios_evaluacion(codigo)
+                ON DELETE CASCADE,
+            UNIQUE KEY uniq_user_module_unit_criteria (user_module_unit_id, criteria_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        SQL;
+
         self::$connection->exec($usersTable);
         $usersRoleMigration(self::$connection);
         self::$connection->exec($userModulesTable);
+        $userModuleTableMigration(self::$connection);
         self::$connection->exec($userModuleEvaluationsTable);
         self::$connection->exec($cyclesTable);
         self::$connection->exec($cycleModulesTable);
         self::$connection->exec($learningOutcomesTable);
         self::$connection->exec($evaluationCriteriaTable);
+        self::$connection->exec($userModuleUnitsTable);
+        self::$connection->exec($userModuleCriteriaTable);
     }
 }
