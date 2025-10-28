@@ -41,10 +41,24 @@ class Database
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         SQL;
 
-        $usersRoleMigration = <<<SQL
-        ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS role ENUM('user', 'admin') NOT NULL DEFAULT 'user' AFTER password;
-        SQL;
+        $usersRoleMigration = function (\PDO $connection): void {
+            $columnExistsQuery = <<<SQL
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'users'
+              AND COLUMN_NAME = 'role';
+            SQL;
+
+            $columnExists = $connection->query($columnExistsQuery)->fetchColumn();
+
+            if ((int) $columnExists === 0) {
+                $connection->exec(<<<SQL
+                ALTER TABLE users
+                    ADD COLUMN role ENUM('user', 'admin') NOT NULL DEFAULT 'user' AFTER password;
+                SQL);
+            }
+        };
 
         $userModulesTable = <<<SQL
         CREATE TABLE IF NOT EXISTS user_modules (
@@ -135,7 +149,7 @@ class Database
         SQL;
 
         self::$connection->exec($usersTable);
-        self::$connection->exec($usersRoleMigration);
+        $usersRoleMigration(self::$connection);
         self::$connection->exec($userModulesTable);
         self::$connection->exec($userModuleEvaluationsTable);
         self::$connection->exec($cyclesTable);
