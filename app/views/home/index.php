@@ -7,7 +7,38 @@ $evaluations = $evaluations ?? [];
 <p class="text-muted">Gestiona tus módulos y evaluaciones desde este panel.</p>
 
 <div class="row g-4 align-items-start mt-2">
-    <div class="col-lg-9 order-2 order-lg-1">
+    <div class="col-lg-3 order-1 order-lg-1 d-flex">
+        <aside class="bg-light rounded-3 p-3 h-100 flex-grow-1">
+            <div class="nav nav-pills flex-lg-column gap-2 w-100" id="home-tabs" role="tablist" aria-orientation="vertical">
+                <button
+                    class="nav-link active w-100 text-start"
+                    id="tab-button-modules"
+                    data-bs-toggle="tab"
+                    data-bs-target="#tab-modules"
+                    type="button"
+                    role="tab"
+                    aria-controls="tab-modules"
+                    aria-selected="true"
+                >
+                    Módulos
+                </button>
+                <button
+                    class="nav-link w-100 text-start"
+                    id="tab-button-evaluations"
+                    data-bs-toggle="tab"
+                    data-bs-target="#tab-evaluations"
+                    type="button"
+                    role="tab"
+                    aria-controls="tab-evaluations"
+                    aria-selected="false"
+                >
+                    Evaluaciones
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <div class="col-lg-9 order-2 order-lg-2">
         <div class="tab-content" id="home-tabs-content">
             <div class="tab-pane fade show active" id="tab-modules" role="tabpanel" aria-labelledby="tab-button-modules">
                 <h2 class="h5 mb-3">Módulos asignados</h2>
@@ -88,40 +119,6 @@ $evaluations = $evaluations ?? [];
 
                 <div class="d-flex justify-content-end">
                     <button type="button" class="btn btn-primary">Añadir evaluación</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-3 order-1 order-lg-2">
-        <div class="card border-0 bg-light">
-            <div class="card-body">
-                <h2 class="h6 text-uppercase text-muted mb-3">Menú</h2>
-                <div class="nav nav-pills flex-lg-column gap-2" id="home-tabs" role="tablist" aria-orientation="vertical">
-                    <button
-                        class="nav-link active"
-                        id="tab-button-modules"
-                        data-bs-toggle="tab"
-                        data-bs-target="#tab-modules"
-                        type="button"
-                        role="tab"
-                        aria-controls="tab-modules"
-                        aria-selected="true"
-                    >
-                        Módulos
-                    </button>
-                    <button
-                        class="nav-link"
-                        id="tab-button-evaluations"
-                        data-bs-toggle="tab"
-                        data-bs-target="#tab-evaluations"
-                        type="button"
-                        role="tab"
-                        aria-controls="tab-evaluations"
-                        aria-selected="false"
-                    >
-                        Evaluaciones
-                    </button>
                 </div>
             </div>
         </div>
