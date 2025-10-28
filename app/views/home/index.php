@@ -77,6 +77,7 @@ $evaluations = $evaluations ?? [];
                                 <tr>
                                     <th scope="col">Módulo</th>
                                     <th scope="col" class="text-nowrap">Fecha de alta</th>
+                                    <th scope="col">Estado</th>
                                     <th scope="col" class="text-end">Acciones</th>
                                 </tr>
                             </thead>
@@ -85,14 +86,40 @@ $evaluations = $evaluations ?? [];
                                     <?php
                                     $createdAt = $module['created_at'] ?? null;
                                     $formattedDate = $createdAt ? date('d/m/Y H:i', strtotime($createdAt)) : '—';
+                                    $state = $module['creation_state'] ?? 'unidades';
+                                    $stateLabels = [
+                                        'seleccion' => 'Pendiente de iniciar',
+                                        'unidades' => 'Definir unidades',
+                                        'trimestres' => 'Asignar trimestres',
+                                        'criterios' => 'Seleccionar criterios',
+                                        'pesos' => 'Configurar pesos',
+                                        'resumen' => 'Revisar resumen',
+                                        'completado' => 'Completado',
+                                    ];
+                                    $stepRoutes = [
+                                        'seleccion' => 'unidades',
+                                        'unidades' => 'unidades',
+                                        'trimestres' => 'trimestres',
+                                        'criterios' => 'criterios',
+                                        'pesos' => 'pesos',
+                                        'resumen' => 'resumen',
+                                        'completado' => 'resumen',
+                                    ];
+                                    $stateLabel = $stateLabels[$state] ?? 'En preparación';
+                                    $nextStep = $stepRoutes[$state] ?? 'unidades';
                                     ?>
                                     <tr>
                                         <td><?= htmlspecialchars($module['module_name'] ?? '') ?></td>
                                         <td><?= htmlspecialchars($formattedDate) ?></td>
+                                        <td><?= htmlspecialchars($stateLabel) ?></td>
                                         <td class="text-end">
                                             <div class="btn-group" role="group" aria-label="Acciones del módulo">
-                                                <button type="button" class="btn btn-outline-secondary btn-sm">Editar</button>
-                                                <button type="button" class="btn btn-outline-danger btn-sm">Borrar</button>
+                                                <a
+                                                    class="btn btn-outline-primary btn-sm"
+                                                    href="/modulos/configurar?id=<?= (int) ($module['id'] ?? 0) ?>&paso=<?= htmlspecialchars($nextStep) ?>"
+                                                >
+                                                    <?= $state === 'completado' ? 'Ver resumen' : 'Continuar' ?>
+                                                </a>
                                             </div>
                                         </td>
                                     </tr>
@@ -103,7 +130,7 @@ $evaluations = $evaluations ?? [];
                 <?php endif; ?>
 
                 <div class="d-flex justify-content-end">
-                    <button type="button" class="btn btn-primary">Añadir módulo</button>
+                    <a href="/modulos/nuevo" class="btn btn-primary">Añadir módulo</a>
                 </div>
             </div>
 
