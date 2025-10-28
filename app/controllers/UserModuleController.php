@@ -1,0 +1,383 @@
+<?php
+
+class UserModuleController extends Controller
+{
+    private const STEPS = ['unidades', 'trimestres', 'criterios', 'pesos', 'resumen'];
+
+    public function create(): void
+    {
+        $this->ensureAuthenticated();
+
+        $_SESSION['module_wizard_show'] = true;
+        $_SESSION['active_tab'] = 'modules';
+
+        $anchor = '#nuevo-modulo';
+        $this->redirect('/?tab=modules' . $anchor);
+    }
+
+    public function store(): void
+    {
+        $this->ensureAuthenticated();
+
+        $moduleCode = strtoupper(trim($_POST['module_code'] ?? ''));
+        if ($moduleCode === '') {
+            $_SESSION['errors']['module_wizard']['module_code'] = 'Debes seleccionar un módulo para continuar.';
+            $_SESSION['module_wizard_show'] = true;
+            $_SESSION['active_tab'] = 'modules';
+            $this->redirect('/?tab=modules#nuevo-modulo');
+        }
+
+        $cycleModuleModel = new CycleModuleModel();
+        $module = $cycleModuleModel->findByCode($moduleCode);
+        if ($module === null) {
+            $_SESSION['errors']['module_wizard']['module_code'] = 'El módulo seleccionado no es válido.';
+            $_SESSION['old']['module_wizard'] = ['module_code' => $moduleCode];
+            $_SESSION['module_wizard_show'] = true;
+            $_SESSION['active_tab'] = 'modules';
+            $this->redirect('/?tab=modules#nuevo-modulo');
+        }
+
+        $userModuleModel = new UserModuleModel();
+        $userId = (int) $_SESSION['user_id'];
+        $moduleId = $userModuleModel->createFromCatalog($userId, $module);
+
+        $_SESSION['success'] = 'Módulo seleccionado correctamente. Continúa con la configuración.';
+        $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=unidades');
+    }
+
+    public function configure(): void
+    {
+        $this->ensureAuthenticated();
+
+        $userId = (int) $_SESSION['user_id'];
+        $moduleId = (int) ($_GET['id'] ?? 0);
+        $requestedStep = $_GET['paso'] ?? 'unidades';
+
+        if ($moduleId <= 0) {
+            $_SESSION['errors']['general'] = 'No se ha podido acceder a la configuración del módulo.';
+            $this->redirect('/');
+        }
+
+        $userModuleModel = new UserModuleModel();
+        $module = $userModuleModel->findForUser($moduleId, $userId);
+        if ($module === null) {
+            $_SESSION['errors']['general'] = 'El módulo solicitado no existe.';
+            $this->redirect('/');
+        }
+
+        $step = $this->resolveStep($requestedStep, $module['creation_state'] ?? 'unidades');
+
+        $unitModel = new UserModuleUnitModel();
+        $unitCriteriaModel = new UserModuleUnitCriteriaModel();
+        $criteriaModel = new EvaluationCriteriaModel();
+
+        $units = $unitModel->getByModule($moduleId);
+        $selectedCriteria = $unitCriteriaModel->getByModule($moduleId);
+
+        $selectedCodesByUnit = [];
+        $criteriaDetailsByUnit = [];
+        foreach ($selectedCriteria as $criteria) {
+            $unitId = (int) $criteria['user_module_unit_id'];
+            $selectedCodesByUnit[$unitId][] = $criteria['criteria_code'];
+            $criteriaDetailsByUnit[$unitId][$criteria['criteria_code']] = $criteria;
+        }
+
+        $availableCriteria = [];
+        if (!empty($module['module_code'])) {
+            $availableCriteria = $this->groupCriteriaByOutcome(
+                $criteriaModel->getByModule($module['module_code'])
+            );
+        }
+
+        $unitRaWeights = $unitCriteriaModel->getUnitRaWeights($moduleId);
+        $summaryByUnit = $this->organizeRaWeights($unitRaWeights);
+        $summaryTotals = $this->calculateRaTotals($summaryByUnit);
+
+        $errors = $_SESSION['errors']['module_wizard'] ?? [];
+        $old = $_SESSION['old']['module_wizard'] ?? [];
+        unset($_SESSION['errors']['module_wizard'], $_SESSION['old']['module_wizard']);
+
+        $this->render('modules/configure', [
+            'title' => 'Configurar módulo',
+            'module' => $module,
+            'step' => $step,
+            'steps' => self::STEPS,
+            'units' => $units,
+            'availableCriteria' => $availableCriteria,
+            'selectedCodesByUnit' => $selectedCodesByUnit,
+            'criteriaDetailsByUnit' => $criteriaDetailsByUnit,
+            'summaryByUnit' => $summaryByUnit,
+            'summaryTotals' => $summaryTotals,
+            'errors' => $errors,
+            'old' => $old,
+        ]);
+    }
+
+    public function saveStep(): void
+    {
+        $this->ensureAuthenticated();
+
+        $userId = (int) $_SESSION['user_id'];
+        $moduleId = (int) ($_POST['module_id'] ?? 0);
+        $step = $_POST['step'] ?? '';
+
+        if ($moduleId <= 0) {
+            $_SESSION['errors']['general'] = 'No se pudo completar la acción solicitada.';
+            $this->redirect('/');
+        }
+
+        $userModuleModel = new UserModuleModel();
+        $module = $userModuleModel->findForUser($moduleId, $userId);
+        if ($module === null) {
+            $_SESSION['errors']['general'] = 'No tienes acceso a este módulo.';
+            $this->redirect('/');
+        }
+
+        $unitModel = new UserModuleUnitModel();
+        $criteriaModel = new UserModuleUnitCriteriaModel();
+
+        switch ($step) {
+            case 'unidades':
+                $unitsCount = (int) ($_POST['units_count'] ?? 0);
+                if ($unitsCount < 1 || $unitsCount > 20) {
+                    $_SESSION['errors']['module_wizard']['units_count'] = 'El número de unidades debe estar entre 1 y 20.';
+                    $_SESSION['old']['module_wizard']['units_count'] = $unitsCount;
+                    $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=unidades');
+                }
+
+                $previousCount = (int) ($module['units_count'] ?? 0);
+                $previousState = $module['creation_state'] ?? 'unidades';
+                $userModuleModel->updateUnitsCount($moduleId, $unitsCount);
+                if ($previousCount !== $unitsCount) {
+                    $unitModel->replaceUnits($moduleId, $unitsCount);
+                    $userModuleModel->updateCreationState($moduleId, 'trimestres');
+                    $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=trimestres');
+                }
+
+                $stepRoutes = [
+                    'seleccion' => 'unidades',
+                    'unidades' => 'unidades',
+                    'trimestres' => 'trimestres',
+                    'criterios' => 'criterios',
+                    'pesos' => 'pesos',
+                    'resumen' => 'resumen',
+                    'completado' => 'resumen',
+                ];
+                $redirectStep = $stepRoutes[$previousState] ?? 'trimestres';
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=' . $redirectStep);
+                break;
+
+            case 'trimestres':
+                $selection = $_POST['trimesters'] ?? [];
+                if (!is_array($selection)) {
+                    $selection = [];
+                }
+
+                $unitModel->saveTrimesters($moduleId, $selection);
+                $userModuleModel->updateCreationState($moduleId, 'criterios');
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=criterios');
+                break;
+
+            case 'criterios':
+                $criteriaSelection = $_POST['criteria'] ?? [];
+                if (!is_array($criteriaSelection)) {
+                    $criteriaSelection = [];
+                }
+
+                $units = $unitModel->getByModule($moduleId);
+                foreach ($units as $unit) {
+                    $unitId = (int) $unit['id'];
+                    $selected = $criteriaSelection[$unitId] ?? [];
+                    if (!is_array($selected)) {
+                        $selected = [];
+                    }
+                    $filtered = array_values(array_unique(array_filter(
+                        array_map(static fn($value): string => trim((string) $value), $selected),
+                        static fn(string $value): bool => $value !== ''
+                    )));
+
+                    $criteriaModel->setCriteriaForUnit($unitId, $filtered);
+                }
+
+                $userModuleModel->updateCreationState($moduleId, 'pesos');
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=pesos');
+                break;
+
+            case 'pesos':
+                $weightsInput = $_POST['weights'] ?? [];
+                if (!is_array($weightsInput)) {
+                    $weightsInput = [];
+                }
+
+                $units = $unitModel->getByModule($moduleId);
+                $hasError = false;
+                $normalizedByUnit = [];
+                foreach ($units as $unit) {
+                    $unitId = (int) $unit['id'];
+                    $unitWeights = $weightsInput[$unitId] ?? [];
+                    if (!is_array($unitWeights) || empty($unitWeights)) {
+                        continue;
+                    }
+
+                    $normalizedWeights = [];
+                    $sum = 0.0;
+                    foreach ($unitWeights as $criteriaCode => $weightValue) {
+                        if (!is_numeric($weightValue)) {
+                            $hasError = true;
+                            break;
+                        }
+
+                        $weight = round((float) $weightValue, 2);
+                        if ($weight < 0 || $weight > 100) {
+                            $hasError = true;
+                            break;
+                        }
+
+                        $normalizedWeights[$criteriaCode] = $weight;
+                        $sum += $weight;
+                    }
+
+                    if ($hasError) {
+                        break;
+                    }
+
+                    if (!empty($normalizedWeights) && abs($sum - 100.0) > 0.5) {
+                        $hasError = true;
+                        break;
+                    }
+
+                    $normalizedByUnit[$unitId] = $normalizedWeights;
+                }
+
+                if ($hasError) {
+                    $_SESSION['errors']['module_wizard']['weights'] = 'Los pesos deben ser numéricos y sumar 100 en cada unidad.';
+                    $_SESSION['old']['module_wizard']['weights'] = $weightsInput;
+                    $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=pesos');
+                }
+
+                foreach ($normalizedByUnit as $unitId => $normalizedWeights) {
+                    $criteriaModel->updateWeightsForUnit((int) $unitId, $normalizedWeights);
+                }
+
+                $userModuleModel->updateCreationState($moduleId, 'resumen');
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=resumen');
+                break;
+
+            case 'finalizar':
+                $userModuleModel->markCompleted($moduleId);
+                $_SESSION['success'] = 'Configuración del módulo completada correctamente.';
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=resumen');
+                break;
+
+            default:
+                $_SESSION['errors']['general'] = 'La acción solicitada no es válida.';
+                $this->redirect('/');
+        }
+    }
+
+    private function ensureAuthenticated(): void
+    {
+        if (!isset($_SESSION['user_id'])) {
+            $this->redirect('/login');
+        }
+    }
+
+    private function resolveStep(string $requested, string $currentState): string
+    {
+        if (!in_array($requested, self::STEPS, true)) {
+            $requested = self::STEPS[0];
+        }
+
+        if ($currentState === 'completado') {
+            return 'resumen';
+        }
+
+        $requestedIndex = array_search($requested, self::STEPS, true);
+        $currentIndex = array_search($currentState, self::STEPS, true);
+
+        if ($currentIndex === false) {
+            $currentIndex = 0;
+        }
+
+        if ($requestedIndex === false || $requestedIndex > $currentIndex) {
+            return self::STEPS[$currentIndex];
+        }
+
+        return $requested;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $criteria
+     * @return array<string, array<string, mixed>>
+     */
+    private function groupCriteriaByOutcome(array $criteria): array
+    {
+        $grouped = [];
+        foreach ($criteria as $criterion) {
+            $outcomeCode = $criterion['codigo_resultado'];
+            if (!isset($grouped[$outcomeCode])) {
+                $grouped[$outcomeCode] = [
+                    'codigo' => $outcomeCode,
+                    'numero' => $criterion['resultado_numero'] ?? '',
+                    'descripcion' => $criterion['resultado_descripcion'] ?? '',
+                    'criteria' => [],
+                ];
+            }
+
+            $grouped[$outcomeCode]['criteria'][] = $criterion;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $weights
+     * @return array<int, array<string, array<string, mixed>>>
+     */
+    private function organizeRaWeights(array $weights): array
+    {
+        $organized = [];
+        foreach ($weights as $row) {
+            $unitId = (int) $row['unit_id'];
+            if (!isset($organized[$unitId])) {
+                $organized[$unitId] = [];
+            }
+
+            $organized[$unitId][$row['ra_codigo']] = [
+                'numero' => $row['ra_numero'],
+                'descripcion' => $row['ra_descripcion'],
+                'weight' => round((float) $row['total_weight'], 2),
+            ];
+        }
+
+        return $organized;
+    }
+
+    /**
+     * @param array<int, array<string, array<string, mixed>>> $summaryByUnit
+     * @return array<string, array<string, mixed>>
+     */
+    private function calculateRaTotals(array $summaryByUnit): array
+    {
+        $totals = [];
+        foreach ($summaryByUnit as $unitRaWeights) {
+            foreach ($unitRaWeights as $raCode => $info) {
+                if (!isset($totals[$raCode])) {
+                    $totals[$raCode] = [
+                        'numero' => $info['numero'],
+                        'descripcion' => $info['descripcion'],
+                        'weight' => 0.0,
+                    ];
+                }
+
+                $totals[$raCode]['weight'] += $info['weight'];
+            }
+        }
+
+        foreach ($totals as &$total) {
+            $total['weight'] = round((float) $total['weight'], 2);
+        }
+
+        return $totals;
+    }
+}
