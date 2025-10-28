@@ -8,19 +8,11 @@ class UserModuleController extends Controller
     {
         $this->ensureAuthenticated();
 
-        $cycleModuleModel = new CycleModuleModel();
-        $modules = $cycleModuleModel->getAll();
+        $_SESSION['module_wizard_show'] = true;
+        $_SESSION['active_tab'] = 'modules';
 
-        $errors = $_SESSION['errors']['module_wizard'] ?? [];
-        $old = $_SESSION['old']['module_wizard'] ?? [];
-        unset($_SESSION['errors']['module_wizard'], $_SESSION['old']['module_wizard']);
-
-        $this->render('modules/new', [
-            'title' => 'Alta de módulo',
-            'modules' => $modules,
-            'errors' => $errors,
-            'old' => $old,
-        ]);
+        $anchor = '#nuevo-modulo';
+        $this->redirect('/?tab=modules' . $anchor);
     }
 
     public function store(): void
@@ -30,7 +22,9 @@ class UserModuleController extends Controller
         $moduleCode = strtoupper(trim($_POST['module_code'] ?? ''));
         if ($moduleCode === '') {
             $_SESSION['errors']['module_wizard']['module_code'] = 'Debes seleccionar un módulo para continuar.';
-            $this->redirect('/modulos/nuevo');
+            $_SESSION['module_wizard_show'] = true;
+            $_SESSION['active_tab'] = 'modules';
+            $this->redirect('/?tab=modules#nuevo-modulo');
         }
 
         $cycleModuleModel = new CycleModuleModel();
@@ -38,7 +32,9 @@ class UserModuleController extends Controller
         if ($module === null) {
             $_SESSION['errors']['module_wizard']['module_code'] = 'El módulo seleccionado no es válido.';
             $_SESSION['old']['module_wizard'] = ['module_code' => $moduleCode];
-            $this->redirect('/modulos/nuevo');
+            $_SESSION['module_wizard_show'] = true;
+            $_SESSION['active_tab'] = 'modules';
+            $this->redirect('/?tab=modules#nuevo-modulo');
         }
 
         $userModuleModel = new UserModuleModel();
