@@ -82,6 +82,10 @@ class UserModuleController extends Controller
             $criteriaDetailsByUnit[$unitId][$criteria['criteria_code']] = $criteria;
         }
 
+        if (!empty($criteriaDetailsByUnit)) {
+            $this->ensureCriteriaWeights($criteriaDetailsByUnit, $unitCriteriaModel);
+        }
+
         $availableCriteria = [];
         if (!empty($module['module_code'])) {
             $availableCriteria = $this->groupCriteriaByOutcome(
@@ -379,5 +383,76 @@ class UserModuleController extends Controller
         }
 
         return $totals;
+    }
+
+    /**
+     * @param array<int, array<string, array<string, mixed>>> &$criteriaDetailsByUnit
+     */
+    private function ensureCriteriaWeights(array &$criteriaDetailsByUnit, UserModuleUnitCriteriaModel $criteriaModel): void
+    {
+        $pendingUpdates = [];
+
+        foreach ($criteriaDetailsByUnit as $unitId => &$criteriaList) {
+            $needsDefaultWeights = false;
+
+            foreach ($criteriaList as $details) {
+                if (!isset($details['weight']) || !is_numeric($details['weight'])) {
+                    $needsDefaultWeights = true;
+                    break;
+                }
+            }
+
+            if (!$needsDefaultWeights) {
+                continue;
+            }
+
+            $defaultWeights = $this->calculateDefaultWeightsForCount(count($criteriaList));
+
+            $weightsByCode = [];
+            $index = 0;
+            foreach ($criteriaList as $code => &$details) {
+                $weight = $defaultWeights[$index] ?? 0.0;
+                $details['weight'] = $weight;
+                $weightsByCode[$code] = $weight;
+                $index++;
+            }
+            unset($details);
+
+            if (!empty($weightsByCode)) {
+                $pendingUpdates[(int) $unitId] = $weightsByCode;
+            }
+        }
+        unset($criteriaList);
+
+        foreach ($pendingUpdates as $unitId => $weights) {
+            $criteriaModel->updateWeightsForUnit($unitId, $weights);
+        }
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function calculateDefaultWeightsForCount(int $count): array
+    {
+        if ($count <= 0) {
+            return [];
+        }
+
+        $totalHundredths = 10000;
+        $base = intdiv($totalHundredths, $count);
+        $remainder = $totalHundredths - ($base * $count);
+
+        $weights = [];
+        for ($index = 0; $index < $count; $index++) {
+            $hundredths = $base;
+            if ($remainder > 0) {
+                $hundredths++;
+                $remainder--;
+            }
+
+            $weights[] = $hundredths / 100;
+        }
+
+        return $weights;
     }
 }
