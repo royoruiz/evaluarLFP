@@ -73,80 +73,84 @@ $wizardOld = $old['module_wizard'] ?? [];
     <div class="home-content">
         <div class="tab-content" id="home-tabs-content">
             <div class="tab-pane fade<?php if ($activeTab === 'modules'): ?> show active<?php endif; ?>" id="tab-modules" role="tabpanel" aria-labelledby="tab-button-modules">
-                <h2 class="h5 mb-3">Módulos asignados</h2>
+                <?php if (!$showModuleWizard): ?>
+                    <h2 class="h5 mb-3">Módulos asignados</h2>
 
-                <?php if (empty($modules)): ?>
-                    <div class="alert alert-info">Todavía no tienes módulos asignados.</div>
-                <?php else: ?>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">Módulo</th>
-                                    <th scope="col" class="text-nowrap">Fecha de alta</th>
-                                    <th scope="col">Estado</th>
-                                    <th scope="col" class="text-end">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($modules as $module): ?>
-                                    <?php
-                                    $createdAt = $module['created_at'] ?? null;
-                                    $formattedDate = $createdAt ? date('d/m/Y H:i', strtotime($createdAt)) : '—';
-                                    $state = $module['creation_state'] ?? 'unidades';
-                                    $stateLabels = [
-                                        'seleccion' => 'Selecciona el módulo del catálogo',
-                                        'unidades' => 'Define las unidades didácticas',
-                                        'trimestres' => 'Asigna las unidades a cada trimestre',
-                                        'criterios' => 'Selecciona los criterios por unidad',
-                                        'pesos' => 'Ajusta los pesos de los criterios',
-                                        'resumen' => 'Revisa el resumen de resultados',
-                                        'completado' => 'Configuración finalizada',
-                                    ];
-                                    $stepRoutes = [
-                                        'seleccion' => 'unidades',
-                                        'unidades' => 'unidades',
-                                        'trimestres' => 'trimestres',
-                                        'criterios' => 'criterios',
-                                        'pesos' => 'pesos',
-                                        'resumen' => 'resumen',
-                                        'completado' => 'resumen',
-                                    ];
-                                    $stateLabel = $stateLabels[$state] ?? 'En preparación';
-                                    $isCompleted = $state === 'completado';
-                                    $nextStep = $stepRoutes[$state] ?? 'unidades';
-                                    ?>
+                    <?php if (empty($modules)): ?>
+                        <div class="alert alert-info">Todavía no tienes módulos asignados.</div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover align-middle">
+                                <thead class="table-light">
                                     <tr>
-                                        <td><?= htmlspecialchars($module['module_name'] ?? '') ?></td>
-                                        <td><?= htmlspecialchars($formattedDate) ?></td>
-                                        <td>
-                                            <span class="badge rounded-pill <?= $isCompleted ? 'bg-success' : 'bg-warning text-dark' ?>">
-                                                <?= $isCompleted ? 'Completado' : 'No terminado' ?>
-                                            </span>
-                                            <?php if (!$isCompleted): ?>
-                                                <div class="text-muted small mt-1">Paso actual: <?= htmlspecialchars($stateLabel) ?></div>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end">
-                                            <div class="btn-group" role="group" aria-label="Acciones del módulo">
-                                                <a
-                                                    class="btn btn-outline-primary btn-sm"
-                                                    href="/modulos/configurar?id=<?= (int) ($module['id'] ?? 0) ?>&paso=<?= htmlspecialchars($nextStep) ?>"
-                                                >
-                                                    <?= $state === 'completado' ? 'Ver resumen' : 'Continuar' ?>
-                                                </a>
-                                            </div>
-                                        </td>
+                                        <th scope="col">Módulo</th>
+                                        <th scope="col" class="text-nowrap">Fecha de alta</th>
+                                        <th scope="col">Estado</th>
+                                        <th scope="col" class="text-end">Acciones</th>
                                     </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($modules as $module): ?>
+                                        <?php
+                                        $createdAt = $module['created_at'] ?? null;
+                                        $formattedDate = $createdAt ? date('d/m/Y H:i', strtotime($createdAt)) : '—';
+                                        $state = $module['creation_state'] ?? 'unidades';
+                                        $stateLabels = [
+                                            'seleccion' => 'Selecciona el módulo del catálogo',
+                                            'unidades' => 'Define las unidades didácticas',
+                                            'trimestres' => 'Asigna las unidades a cada trimestre',
+                                            'criterios' => 'Selecciona los criterios por unidad',
+                                            'pesos' => 'Ajusta los pesos de los criterios',
+                                            'resumen' => 'Revisa el resumen de resultados',
+                                            'completado' => 'Configuración finalizada',
+                                        ];
+                                        $stepRoutes = [
+                                            'seleccion' => 'unidades',
+                                            'unidades' => 'unidades',
+                                            'trimestres' => 'trimestres',
+                                            'criterios' => 'criterios',
+                                            'pesos' => 'pesos',
+                                            'resumen' => 'resumen',
+                                            'completado' => 'resumen',
+                                        ];
+                                        $stateLabel = $stateLabels[$state] ?? 'En preparación';
+                                        $isCompleted = $state === 'completado';
+                                        $nextStep = $stepRoutes[$state] ?? 'unidades';
+                                        ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($module['module_name'] ?? '') ?></td>
+                                            <td><?= htmlspecialchars($formattedDate) ?></td>
+                                            <td>
+                                                <span class="badge rounded-pill <?= $isCompleted ? 'bg-success' : 'bg-warning text-dark' ?>">
+                                                    <?= $isCompleted ? 'Completado' : 'No terminado' ?>
+                                                </span>
+                                                <?php if (!$isCompleted): ?>
+                                                    <div class="text-muted small mt-1">Paso actual: <?= htmlspecialchars($stateLabel) ?></div>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="btn-group" role="group" aria-label="Acciones del módulo">
+                                                    <a
+                                                        class="btn btn-outline-primary btn-sm"
+                                                        href="/modulos/configurar?id=<?= (int) ($module['id'] ?? 0) ?>&paso=<?= htmlspecialchars($nextStep) ?>"
+                                                    >
+                                                        <?= $state === 'completado' ? 'Ver resumen' : 'Continuar' ?>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
 
-                <div class="d-flex justify-content-end mb-3">
-                    <a href="/modulos/nuevo" class="btn btn-primary">Añadir módulo</a>
-                </div>
+                    <div class="d-flex justify-content-end mb-3">
+                        <a href="/modulos/nuevo" class="btn btn-primary">Añadir módulo</a>
+                    </div>
+                <?php else: ?>
+                    <h2 class="h5 mb-3">Nuevo módulo</h2>
+                <?php endif; ?>
 
                 <div id="nuevo-modulo" class="card<?php if (!$showModuleWizard): ?> d-none<?php endif; ?>">
                     <div class="card-header">Seleccionar módulo del catálogo</div>
