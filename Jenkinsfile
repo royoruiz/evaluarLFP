@@ -33,6 +33,7 @@ pipeline {
             --exclude 'Dockerfile' \
             --exclude 'Dockerfile.php' \
             --exclude 'compose.yaml' \
+            --exclude 'config/config.local.php' \
             ./ "$WEB_ROOT"/
         '''
       }
