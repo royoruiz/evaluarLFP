@@ -41,24 +41,60 @@ foreach ($units as $unit) {
 }
 ?>
 
-<h1 class="h4 mb-4">Configurar módulo</h1>
-<div class="mb-4">
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
-        <div>
-            <h2 class="h5 mb-1"><?= htmlspecialchars($module['module_name'] ?? 'Módulo sin nombre') ?></h2>
-            <p class="mb-0 text-muted">
-                <?php if (!empty($module['module_code'])): ?>
-                    Código: <strong><?= htmlspecialchars($module['module_code']) ?></strong>
-                <?php else: ?>
-                    Código no vinculado al catálogo
-                <?php endif; ?>
-            </p>
+<style>
+@media (min-width: 992px) {
+    .module-config-layout {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+    }
+
+    .module-config-sidebar {
+        flex: 0 0 15%;
+        max-width: 15%;
+    }
+
+    .module-config-content {
+        flex: 1;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .module-config-sidebar {
+        margin-bottom: 1.5rem;
+    }
+}
+</style>
+
+<div class="module-config-layout">
+    <aside class="module-config-sidebar">
+        <div class="bg-light rounded-3 p-3 h-100">
+            <div class="nav nav-pills flex-lg-column gap-2 w-100" role="tablist" aria-orientation="vertical">
+                <a class="nav-link active" href="#">Módulos</a>
+                <a class="nav-link" href="/?tab=evaluations">Evaluaciones</a>
+            </div>
         </div>
-        <div class="mt-3 mt-lg-0">
-            <a href="/" class="btn btn-outline-secondary">Volver al panel</a>
+    </aside>
+
+    <div class="module-config-content">
+        <h1 class="h4 mb-4">Configurar módulo</h1>
+        <div class="mb-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
+                <div>
+                    <h2 class="h5 mb-1"><?= htmlspecialchars($module['module_name'] ?? 'Módulo sin nombre') ?></h2>
+                    <p class="mb-0 text-muted">
+                        <?php if (!empty($module['module_code'])): ?>
+                            Código: <strong><?= htmlspecialchars($module['module_code']) ?></strong>
+                        <?php else: ?>
+                            Código no vinculado al catálogo
+                        <?php endif; ?>
+                    </p>
+                </div>
+                <div class="mt-3 mt-lg-0">
+                    <a href="/" class="btn btn-outline-secondary">Volver al panel</a>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
 
 <ul class="nav nav-tabs flex-column flex-lg-row mb-4" id="module-config-tabs" role="tablist">
     <?php foreach ($steps as $index => $stepKey): ?>
@@ -212,45 +248,175 @@ foreach ($units as $unit) {
                     <?php elseif (empty($availableCriteria)): ?>
                         <div class="alert alert-info">Todavía no hay criterios de evaluación asociados a este módulo en el catálogo.</div>
                     <?php else: ?>
+                        <style>
+                            .unit-criteria-layout {
+                                display: flex;
+                                flex-direction: column;
+                            }
+
+                            @media (min-width: 992px) {
+                                .unit-criteria-layout {
+                                    flex-direction: row;
+                                    gap: 1.5rem;
+                                }
+
+                                .unit-criteria-tabs {
+                                    flex: 0 0 220px;
+                                }
+                            }
+
+                            .unit-criteria-tabs .nav-link {
+                                text-align: left;
+                            }
+
+                            .ra-toggle {
+                                background-color: transparent;
+                                border: 0;
+                                padding: 1rem;
+                                width: 100%;
+                                text-align: left;
+                                display: flex;
+                                align-items: flex-start;
+                                justify-content: space-between;
+                                gap: 1rem;
+                                font-weight: 600;
+                            }
+
+                            .ra-toggle .toggle-icon::before {
+                                content: '+';
+                                font-size: 1.25rem;
+                                line-height: 1;
+                                display: inline-block;
+                            }
+
+                            .ra-toggle:not(.collapsed) .toggle-icon::before {
+                                content: '\2212';
+                            }
+
+                            .ra-toggle .ra-text {
+                                flex: 1;
+                            }
+
+                            .ra-toggle .ra-text .ra-description {
+                                font-weight: 400;
+                                font-size: 0.9rem;
+                                color: #6c757d;
+                                margin-top: 0.25rem;
+                            }
+
+                            .criteria-list .list-group-item {
+                                display: flex;
+                                align-items: flex-start;
+                                justify-content: space-between;
+                                gap: 1rem;
+                            }
+
+                            .criteria-list .criteria-text {
+                                flex: 1;
+                            }
+
+                            .criteria-list .form-check-input {
+                                margin-top: 0.35rem;
+                            }
+                        </style>
+
                         <form method="post" action="/modulos/configurar">
                             <input type="hidden" name="module_id" value="<?= (int) ($module['id'] ?? 0) ?>">
                             <input type="hidden" name="step" value="criterios">
 
-                            <?php foreach ($units as $unit): ?>
-                                <?php $unitId = (int) $unit['id']; ?>
-                                <div class="card mb-3">
-                                    <div class="card-header bg-light">
-                                        <strong><?= htmlspecialchars($unit['unit_label']) ?></strong>
-                                    </div>
-                                    <div class="card-body">
-                                        <?php foreach ($availableCriteria as $outcome): ?>
-                                            <div class="mb-3">
-                                                <h3 class="h6">RA <?= htmlspecialchars($outcome['numero']) ?> — <?= htmlspecialchars($outcome['descripcion']) ?></h3>
-                                                <div class="row g-2">
-                                                    <?php foreach ($outcome['criteria'] as $criterion): ?>
-                                                        <?php
-                                                        $code = $criterion['codigo'];
-                                                        $inputId = 'unit' . $unitId . '-' . $code;
-                                                        $isChecked = in_array($code, $selectedCodesByUnit[$unitId] ?? [], true);
-                                                        ?>
-                                                        <div class="col-12 col-md-6">
-                                                            <div class="form-check">
-                                                                <input class="form-check-input" type="checkbox" id="<?= htmlspecialchars($inputId) ?>" name="criteria[<?= $unitId ?>][]" value="<?= htmlspecialchars($code) ?>"<?php if ($isChecked): ?> checked<?php endif; ?>>
-                                                                <label class="form-check-label" for="<?= htmlspecialchars($inputId) ?>">
-                                                                    <strong><?= htmlspecialchars($criterion['letra']) ?>.</strong>
-                                                                    <?= htmlspecialchars($criterion['descripcion']) ?>
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                            </div>
+                            <div class="unit-criteria-layout">
+                                <div class="unit-criteria-tabs mb-3 mb-lg-0">
+                                    <div class="nav flex-lg-column nav-pills" id="unit-tabs" role="tablist" aria-orientation="vertical">
+                                        <?php foreach ($units as $index => $unit): ?>
+                                            <?php $unitId = (int) $unit['id']; ?>
+                                            <button
+                                                class="nav-link<?php if ($index === 0): ?> active<?php endif; ?>"
+                                                id="tab-unit-<?= $unitId ?>"
+                                                data-bs-toggle="tab"
+                                                data-bs-target="#unit-pane-<?= $unitId ?>"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="unit-pane-<?= $unitId ?>"
+                                                aria-selected="<?= $index === 0 ? 'true' : 'false' ?>"
+                                            >
+                                                <?= htmlspecialchars($unit['unit_label']) ?>
+                                            </button>
                                         <?php endforeach; ?>
                                     </div>
                                 </div>
-                            <?php endforeach; ?>
 
-                            <div class="d-flex justify-content-between">
+                                <div class="tab-content flex-grow-1" id="unit-tab-content">
+                                    <?php foreach ($units as $index => $unit): ?>
+                                        <?php
+                                        $unitId = (int) $unit['id'];
+                                        $selectedForUnit = $selectedCodesByUnit[$unitId] ?? [];
+                                        ?>
+                                        <div
+                                            class="tab-pane fade<?php if ($index === 0): ?> show active<?php endif; ?>"
+                                            id="unit-pane-<?= $unitId ?>"
+                                            role="tabpanel"
+                                            aria-labelledby="tab-unit-<?= $unitId ?>"
+                                        >
+                                            <div class="accordion" id="accordion-unit-<?= $unitId ?>">
+                                                <?php foreach ($availableCriteria as $outcome): ?>
+                                                    <?php
+                                                    $collapseId = 'collapse-unit-' . $unitId . '-' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $outcome['codigo']);
+                                                    ?>
+                                                    <div class="card mb-3">
+                                                        <div class="card-header p-0 bg-white border-0">
+                                                            <button
+                                                                class="ra-toggle collapsed"
+                                                                type="button"
+                                                                data-bs-toggle="collapse"
+                                                                data-bs-target="#<?= htmlspecialchars($collapseId) ?>"
+                                                                aria-expanded="false"
+                                                                aria-controls="<?= htmlspecialchars($collapseId) ?>"
+                                                            >
+                                                                <span class="ra-text">
+                                                                    <span>RA <?= htmlspecialchars($outcome['numero']) ?></span>
+                                                                    <span class="ra-description"><?= htmlspecialchars($outcome['descripcion']) ?></span>
+                                                                </span>
+                                                                <span class="toggle-icon" aria-hidden="true"></span>
+                                                            </button>
+                                                        </div>
+                                                        <div
+                                                            id="<?= htmlspecialchars($collapseId) ?>"
+                                                            class="collapse"
+                                                            data-bs-parent="#accordion-unit-<?= $unitId ?>"
+                                                        >
+                                                            <div class="list-group list-group-flush criteria-list">
+                                                                <?php foreach ($outcome['criteria'] as $criterion): ?>
+                                                                    <?php
+                                                                    $code = $criterion['codigo'];
+                                                                    $inputId = 'unit' . $unitId . '-' . $code;
+                                                                    $isChecked = in_array($code, $selectedForUnit, true);
+                                                                    ?>
+                                                                    <label class="list-group-item">
+                                                                        <span class="criteria-text">
+                                                                            <span class="fw-semibold">CE <?= htmlspecialchars($criterion['letra']) ?>.</span>
+                                                                            <span class="d-block small text-muted mt-1"><?= htmlspecialchars($criterion['descripcion']) ?></span>
+                                                                        </span>
+                                                                        <input
+                                                                            class="form-check-input"
+                                                                            type="checkbox"
+                                                                            id="<?= htmlspecialchars($inputId) ?>"
+                                                                            name="criteria[<?= $unitId ?>][]"
+                                                                            value="<?= htmlspecialchars($code) ?>"
+                                                                            <?php if ($isChecked): ?>checked<?php endif; ?>
+                                                                        >
+                                                                    </label>
+                                                                <?php endforeach; ?>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between mt-4">
                                 <a href="/modulos/configurar?id=<?= (int) ($module['id'] ?? 0) ?>&paso=trimestres" class="btn btn-outline-secondary">Volver</a>
                                 <button type="submit" class="btn btn-primary">Guardar y continuar</button>
                             </div>
@@ -423,4 +589,7 @@ foreach ($units as $unit) {
             <?php endif; ?>
         </div>
     <?php endforeach; ?>
+</div>
+
+    </div>
 </div>
