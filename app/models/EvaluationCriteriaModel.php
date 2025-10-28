@@ -16,6 +16,27 @@ class EvaluationCriteriaModel extends Model
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getByModule(string $moduleCode): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT
+                 ce.codigo,
+                 ce.letra,
+                 ce.descripcion,
+                 ce.codigo_resultado,
+                 ra.numero AS resultado_numero,
+                 ra.descripcion AS resultado_descripcion
+             FROM criterios_evaluacion AS ce
+             INNER JOIN resultados_aprendizaje AS ra ON ra.codigo = ce.codigo_resultado
+             WHERE ra.codigo_modulo = :module_code
+             ORDER BY ra.numero, ce.letra'
+        );
+
+        $stmt->execute(['module_code' => $moduleCode]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function save(string $codigo, string $letra, string $descripcion, string $codigoResultado): bool
     {
         $stmt = $this->db->prepare(
