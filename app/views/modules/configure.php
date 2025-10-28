@@ -269,6 +269,14 @@ foreach ($units as $unit) {
                                 text-align: left;
                             }
 
+                            .ra-card-header {
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                gap: 0.75rem;
+                                padding-right: 1rem;
+                            }
+
                             .ra-toggle {
                                 background-color: transparent;
                                 border: 0;
@@ -318,6 +326,12 @@ foreach ($units as $unit) {
                             .criteria-list .form-check-input {
                                 margin-top: 0.35rem;
                             }
+
+                            .ra-select-check {
+                                display: flex;
+                                align-items: center;
+                                padding: 0 0.5rem;
+                            }
                         </style>
 
                         <form method="post" action="/modulos/configurar">
@@ -360,24 +374,49 @@ foreach ($units as $unit) {
                                             <div class="accordion" id="accordion-unit-<?= $unitId ?>">
                                                 <?php foreach ($availableCriteria as $outcome): ?>
                                                     <?php
-                                                    $collapseId = 'collapse-unit-' . $unitId . '-' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $outcome['codigo']);
+                                                    $sanitizedCode = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $outcome['codigo']);
+                                                    $collapseId = 'collapse-unit-' . $unitId . '-' . $sanitizedCode;
+                                                    $raCheckboxId = 'ra-select-' . $unitId . '-' . $sanitizedCode;
+                                                    $criterionCodes = array_column($outcome['criteria'], 'codigo');
+                                                    $selectedCount = count(array_intersect($criterionCodes, $selectedForUnit));
+                                                    $totalCriteria = count($criterionCodes);
+                                                    $raInitialState = 'none';
+                                                    if ($totalCriteria > 0 && $selectedCount === $totalCriteria) {
+                                                        $raInitialState = 'all';
+                                                    } elseif ($selectedCount > 0) {
+                                                        $raInitialState = 'partial';
+                                                    }
                                                     ?>
-                                                    <div class="card mb-3">
+                                                    <div class="card mb-3 ra-card" data-unit="<?= $unitId ?>" data-ra-code="<?= htmlspecialchars($outcome['codigo']) ?>">
                                                         <div class="card-header p-0 bg-white border-0">
-                                                            <button
-                                                                class="ra-toggle collapsed"
-                                                                type="button"
-                                                                data-bs-toggle="collapse"
-                                                                data-bs-target="#<?= htmlspecialchars($collapseId) ?>"
-                                                                aria-expanded="false"
-                                                                aria-controls="<?= htmlspecialchars($collapseId) ?>"
-                                                            >
-                                                                <span class="ra-text">
-                                                                    <span>RA <?= htmlspecialchars($outcome['numero']) ?></span>
-                                                                    <span class="ra-description"><?= htmlspecialchars($outcome['descripcion']) ?></span>
-                                                                </span>
-                                                                <span class="toggle-icon" aria-hidden="true"></span>
-                                                            </button>
+                                                            <div class="ra-card-header">
+                                                                <button
+                                                                    class="ra-toggle collapsed"
+                                                                    type="button"
+                                                                    data-bs-toggle="collapse"
+                                                                    data-bs-target="#<?= htmlspecialchars($collapseId) ?>"
+                                                                    aria-expanded="false"
+                                                                    aria-controls="<?= htmlspecialchars($collapseId) ?>"
+                                                                >
+                                                                    <span class="ra-text">
+                                                                        <span>RA <?= htmlspecialchars($outcome['numero']) ?></span>
+                                                                        <span class="ra-description"><?= htmlspecialchars($outcome['descripcion']) ?></span>
+                                                                    </span>
+                                                                    <span class="toggle-icon" aria-hidden="true"></span>
+                                                                </button>
+                                                                <div class="ra-select-check form-check mb-0">
+                                                                    <input
+                                                                        class="form-check-input ra-select-all"
+                                                                        type="checkbox"
+                                                                        id="<?= htmlspecialchars($raCheckboxId) ?>"
+                                                                        data-initial-state="<?= $raInitialState ?>"
+                                                                        <?php if ($raInitialState === 'all'): ?>checked<?php endif; ?>
+                                                                    >
+                                                                    <label class="form-check-label visually-hidden" for="<?= htmlspecialchars($raCheckboxId) ?>">
+                                                                        Seleccionar todos los criterios del RA <?= htmlspecialchars($outcome['numero']) ?>
+                                                                    </label>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         <div
                                                             id="<?= htmlspecialchars($collapseId) ?>"
@@ -397,7 +436,7 @@ foreach ($units as $unit) {
                                                                             <span class="d-block small text-muted mt-1"><?= htmlspecialchars($criterion['descripcion']) ?></span>
                                                                         </span>
                                                                         <input
-                                                                            class="form-check-input"
+                                                                            class="form-check-input ra-criteria-checkbox"
                                                                             type="checkbox"
                                                                             id="<?= htmlspecialchars($inputId) ?>"
                                                                             name="criteria[<?= $unitId ?>][]"
@@ -421,6 +460,81 @@ foreach ($units as $unit) {
                                 <button type="submit" class="btn btn-primary">Guardar y continuar</button>
                             </div>
                         </form>
+
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function () {
+                                document.querySelectorAll('.ra-card').forEach(function (card) {
+                                    var raCheckbox = card.querySelector('.ra-select-all');
+                                    if (!raCheckbox) {
+                                        return;
+                                    }
+
+                                    var criteriaCheckboxes = card.querySelectorAll('.ra-criteria-checkbox');
+                                    if (!criteriaCheckboxes.length) {
+                                        raCheckbox.disabled = true;
+                                        return;
+                                    }
+
+                                    var applyInitialState = function () {
+                                        var state = raCheckbox.getAttribute('data-initial-state');
+                                        if (state === 'all') {
+                                            raCheckbox.checked = true;
+                                            raCheckbox.indeterminate = false;
+                                        } else if (state === 'partial') {
+                                            raCheckbox.checked = false;
+                                            raCheckbox.indeterminate = true;
+                                        } else {
+                                            raCheckbox.checked = false;
+                                            raCheckbox.indeterminate = false;
+                                        }
+                                    };
+
+                                    var syncFromChildren = function () {
+                                        var total = criteriaCheckboxes.length;
+                                        var checked = 0;
+
+                                        criteriaCheckboxes.forEach(function (checkbox) {
+                                            if (checkbox.checked) {
+                                                checked += 1;
+                                            }
+                                        });
+
+                                        if (checked === 0) {
+                                            raCheckbox.checked = false;
+                                            raCheckbox.indeterminate = false;
+                                        } else if (checked === total) {
+                                            raCheckbox.checked = true;
+                                            raCheckbox.indeterminate = false;
+                                        } else {
+                                            raCheckbox.checked = false;
+                                            raCheckbox.indeterminate = true;
+                                        }
+                                    };
+
+                                    applyInitialState();
+
+                                    raCheckbox.addEventListener('change', function () {
+                                        var shouldCheckAll = raCheckbox.checked;
+                                        raCheckbox.indeterminate = false;
+
+                                        criteriaCheckboxes.forEach(function (checkbox) {
+                                            checkbox.checked = shouldCheckAll;
+                                        });
+
+                                        syncFromChildren();
+                                    });
+
+                                    criteriaCheckboxes.forEach(function (checkbox) {
+                                        checkbox.addEventListener('change', function () {
+                                            raCheckbox.setAttribute('data-initial-state', 'updated');
+                                            syncFromChildren();
+                                        });
+                                    });
+
+                                    syncFromChildren();
+                                });
+                            });
+                        </script>
                     <?php endif; ?>
                 <?php else: ?>
                     <p class="text-muted">Selecciona este paso para escoger los criterios de evaluación por unidad.</p>
