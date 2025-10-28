@@ -1,6 +1,6 @@
 <?php
 /** @var callable $content */
-$title = $title ?? 'Aplicación MVC';
+$title = $title ?? 'Aplicación Evaluar en LFP';
 $errors = $errors ?? [];
 $old = $old ?? [];
 $success = $_SESSION['success'] ?? null;
@@ -19,7 +19,7 @@ if ($success) {
 <body class="bg-light">
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container">
-        <a class="navbar-brand" href="/">MVC MySQL</a>
+        <a class="navbar-brand" href="/">Evaluar en LFP</a>
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
                 <?php if (isset($_SESSION['user_id'])): ?>
