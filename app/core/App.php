@@ -79,6 +79,26 @@ class App
             $controller->deleteEvaluationCriterion();
         });
 
+        $this->router->add('GET', '/modulos/nuevo', function () {
+            $controller = new UserModuleController();
+            $controller->create();
+        });
+
+        $this->router->add('POST', '/modulos/nuevo', function () {
+            $controller = new UserModuleController();
+            $controller->store();
+        });
+
+        $this->router->add('GET', '/modulos/configurar', function () {
+            $controller = new UserModuleController();
+            $controller->configure();
+        });
+
+        $this->router->add('POST', '/modulos/configurar', function () {
+            $controller = new UserModuleController();
+            $controller->saveStep();
+        });
+
         $this->router->add('GET', '/login', function () {
             $controller = new AuthController();
             $controller->showLogin();

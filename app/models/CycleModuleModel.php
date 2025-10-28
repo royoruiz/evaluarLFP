@@ -33,4 +33,16 @@ class CycleModuleModel extends Model
         $stmt = $this->db->prepare('DELETE FROM modulos_ciclo WHERE codigo = :codigo');
         return $stmt->execute(['codigo' => $codigo]);
     }
+
+    public function findByCode(string $codigo): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT codigo, nombre, codigo_ciclo, curso FROM modulos_ciclo WHERE codigo = :codigo'
+        );
+        $stmt->execute(['codigo' => $codigo]);
+
+        $module = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $module !== false ? $module : null;
+    }
 }
