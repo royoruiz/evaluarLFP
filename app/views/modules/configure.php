@@ -48,6 +48,7 @@ foreach ($units as $unit) {
         display: flex;
         gap: 1.5rem;
         align-items: flex-start;
+        width: 100%;
     }
 
     .module-config-sidebar {
@@ -56,8 +57,13 @@ foreach ($units as $unit) {
     }
 
     .module-config-content {
-        flex: 1;
+        flex: 1 1 0%;
+        min-width: 0;
     }
+}
+
+.module-config-layout {
+    width: 100%;
 }
 
 @media (max-width: 991.98px) {
