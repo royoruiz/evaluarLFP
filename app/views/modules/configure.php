@@ -577,7 +577,7 @@ foreach ($units as $unit) {
                             ?>
 
                             <div class="card">
-                                <div class="card-body p-0">
+                                <div class="card-body">
                                     <div class="table-responsive">
                                         <table class="table table-bordered align-middle weights-matrix mb-0">
                                     <thead class="table-light">
