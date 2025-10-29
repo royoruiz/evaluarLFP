@@ -83,7 +83,27 @@ class UserModuleController extends Controller
         }
 
         if (!empty($criteriaDetailsByUnit)) {
-            $this->ensureCriteriaWeights($criteriaDetailsByUnit, $unitCriteriaModel);
+            $forceDefaultWeights = ($module['creation_state'] ?? '') === 'pesos';
+
+            if (!$forceDefaultWeights) {
+                foreach ($criteriaDetailsByUnit as $unitCriteria) {
+                    $foundFractionScale = false;
+                    foreach ($unitCriteria as $criterionDetails) {
+                        $storedWeight = (float) ($criterionDetails['weight'] ?? 0.0);
+                        if ($storedWeight > 0.0 && $storedWeight <= 1.0) {
+                            $foundFractionScale = true;
+                            break;
+                        }
+                    }
+
+                    if ($foundFractionScale) {
+                        $forceDefaultWeights = true;
+                        break;
+                    }
+                }
+            }
+
+            $this->ensureCriteriaWeights($criteriaDetailsByUnit, $unitCriteriaModel, $forceDefaultWeights);
         }
 
         $availableCriteria = [];
@@ -339,7 +359,7 @@ class UserModuleController extends Controller
                                 $normalizedByUnit[$unitId] = [];
                             }
 
-                            $normalizedByUnit[$unitId][$criteriaCode] = round(($weight / 100) * ($share / 100), 4);
+                            $normalizedByUnit[$unitId][$criteriaCode] = round($weight * ($share / 100), 2);
                         }
 
                         if ($hasError) {
@@ -594,7 +614,11 @@ class UserModuleController extends Controller
     /**
      * @param array<int, array<string, array<string, mixed>>> &$criteriaDetailsByUnit
      */
-    private function ensureCriteriaWeights(array &$criteriaDetailsByUnit, UserModuleUnitCriteriaModel $criteriaModel): void
+    private function ensureCriteriaWeights(
+        array &$criteriaDetailsByUnit,
+        UserModuleUnitCriteriaModel $criteriaModel,
+        bool $forceDefaults = false
+    ): void
     {
         $outcomes = $this->collectOutcomeCriteriaData($criteriaDetailsByUnit);
         $pendingUpdates = [];
@@ -610,12 +634,16 @@ class UserModuleController extends Controller
                 continue;
             }
 
-            $needsReset = false;
+            $needsReset = $forceDefaults;
             $totalByOutcome = 0.0;
+            $defaultRaWeights = $this->calculateDefaultWeightsForCount($criteriaCount);
+            $criterionIndex = 0;
 
             foreach ($criteria as $criterionInfo) {
                 $units = $criterionInfo['units'] ?? [];
                 if (empty($units)) {
+                    $needsReset = true;
+                    $criterionIndex++;
                     continue;
                 }
 
@@ -633,13 +661,13 @@ class UserModuleController extends Controller
                 }
 
                 $totalByOutcome += $criterionTotal;
+                $criterionIndex++;
             }
 
             if (!$needsReset && abs($totalByOutcome - 1.0) <= 0.01) {
                 continue;
             }
 
-            $defaultRaWeights = $this->calculateDefaultWeightsForCount($criteriaCount);
             $criterionIndex = 0;
 
             foreach ($criteria as $criterionCode => $criterionInfo) {
@@ -656,7 +684,7 @@ class UserModuleController extends Controller
 
                 foreach ($unitIds as $unitPosition => $unitId) {
                     $share = $defaultShares[$unitPosition] ?? 0.0;
-                    $newWeight = round($raWeight * $share, 4);
+                    $newWeight = round($raWeight * $share * 100, 2);
 
                     if (!isset($pendingUpdates[$unitId])) {
                         $pendingUpdates[$unitId] = [];
@@ -686,19 +714,18 @@ class UserModuleController extends Controller
             return [];
         }
 
-        $totalHundredths = 100;
-        $base = intdiv($totalHundredths, $count);
-        $remainder = $totalHundredths - ($base * $count);
-
         $weights = [];
+        $accumulated = 0.0;
+
         for ($index = 0; $index < $count; $index++) {
-            $hundredths = $base;
-            if ($remainder > 0) {
-                $hundredths++;
-                $remainder--;
+            if ($index === $count - 1) {
+                $value = max(0.0, 1.0 - $accumulated);
+            } else {
+                $value = 1.0 / $count;
+                $accumulated += $value;
             }
 
-            $weights[] = $hundredths / 100;
+            $weights[] = $value;
         }
 
         return $weights;
