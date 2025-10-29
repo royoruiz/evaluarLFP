@@ -581,7 +581,6 @@ foreach ($units as $unit) {
                                     <thead class="table-light">
                                         <tr>
                                             <th scope="col" class="text-nowrap">RA</th>
-                                            <th scope="col">Resultados de aprendizaje</th>
                                             
                                             <th scope="col">Criterios de evaluación</th>
                                             <th scope="col" class="text-center bg-warning-subtle text-nowrap">Peso CE</th>
@@ -648,20 +647,37 @@ foreach ($units as $unit) {
                                             <?php foreach ($processedCriteria as $index => $criterion): ?>
                                                 <tr class="ra-weight-row" data-ra-code="<?= htmlspecialchars($raCode) ?>">
                                                     <?php if ($index === 0): ?>
+                                                        <?php
+                                                        $raDescription = trim((string) ($raData['descripcion'] ?? ''));
+                                                        $raTooltip = preg_replace('/\s+/u', ' ', $raDescription);
+                                                        ?>
                                                         <td class="fw-semibold text-nowrap align-top" rowspan="<?= $rowspan ?>">
-                                                            RA <?= htmlspecialchars($raNumber) ?>
+                                                            <span
+                                                                class="d-inline-block"
+                                                                data-bs-toggle="tooltip"
+                                                                data-bs-placement="top"
+                                                                title="<?= htmlspecialchars($raTooltip ?? '') ?>"
+                                                            >
+                                                                RA <?= htmlspecialchars($raNumber) ?>
+                                                            </span>
                                                             <div class="small text-muted mt-2">
                                                                 Total RA: <span class="fw-semibold ra-total-indicator"><?= htmlspecialchars($raTotalFormatted) ?></span>%
                                                             </div>
                                                         </td>
-                                                        <td class="align-top" rowspan="<?= $rowspan ?>">
-                                                            <?= nl2br(htmlspecialchars($raData['descripcion'] ?? '')) ?>
-                                                        </td>
                                                     <?php endif; ?>
                                                     <td class="align-top">
                                                         <div class="criterion-info border rounded-2 p-2 bg-white h-100">
-                                                            <div class="fw-semibold text-nowrap">CE <?= htmlspecialchars($criterion['letra'] !== '' ? $criterion['letra'] : $criterion['code']) ?></div>
-                                                            <div class="small text-muted"><?= htmlspecialchars($criterion['descripcion']) ?></div>
+                                                            <?php
+                                                            $criterionTooltip = preg_replace('/\s+/u', ' ', trim((string) $criterion['descripcion']));
+                                                            ?>
+                                                            <div
+                                                                class="fw-semibold text-nowrap"
+                                                                data-bs-toggle="tooltip"
+                                                                data-bs-placement="top"
+                                                                title="<?= htmlspecialchars($criterionTooltip ?? '') ?>"
+                                                            >
+                                                                CE <?= htmlspecialchars($criterion['letra'] !== '' ? $criterion['letra'] : $criterion['code']) ?>
+                                                            </div>
                                                             <div class="small text-muted mt-2">Total unidades: <span class="fw-semibold ce-share-indicator"><?= htmlspecialchars($criterion['share_total']) ?></span>%</div>
                                                         </div>
                                                     </td>
@@ -715,6 +731,22 @@ foreach ($units as $unit) {
 
                         <script>
                             document.addEventListener('DOMContentLoaded', function () {
+                                var tooltipElements = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                                if (tooltipElements.length) {
+                                    var tooltipConstructor = null;
+                                    if (typeof bootstrap !== 'undefined' && typeof bootstrap.Tooltip === 'function') {
+                                        tooltipConstructor = bootstrap.Tooltip;
+                                    } else if (window.bootstrap && typeof window.bootstrap.Tooltip === 'function') {
+                                        tooltipConstructor = window.bootstrap.Tooltip;
+                                    }
+
+                                    if (tooltipConstructor) {
+                                        tooltipElements.forEach(function (el) {
+                                            new tooltipConstructor(el);
+                                        });
+                                    }
+                                }
+
                                 var rows = document.querySelectorAll('.ra-weight-row');
                                 if (!rows.length) {
                                     return;
