@@ -576,8 +576,10 @@ foreach ($units as $unit) {
                             $oldCriterionUnitWeights = $old['criterion_unit_weights'] ?? [];
                             ?>
 
-                            <div class="table-responsive">
-                                <table class="table table-bordered align-middle weights-matrix">
+                            <div class="card">
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered align-middle weights-matrix mb-0">
                                     <thead class="table-light">
                                         <tr>
                                             <th scope="col" class="text-nowrap">RA</th>
@@ -720,7 +722,9 @@ foreach ($units as $unit) {
                                             <?php endforeach; ?>
                                         <?php endforeach; ?>
                                     </tbody>
-                                </table>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="d-flex justify-content-between mt-3">
