@@ -24,7 +24,7 @@ class UserModuleUnitCriteriaModel extends Model
             $insertStatement->execute([
                 'unit_id' => $unitId,
                 'criteria_code' => $criteriaCode,
-                'weight' => $weights[$index],
+                'weight' => round((float) ($weights[$index] ?? 0.0), 2),
             ]);
         }
     }
@@ -98,7 +98,7 @@ class UserModuleUnitCriteriaModel extends Model
 
         foreach ($weights as $criteriaCode => $weight) {
             $updateStatement->execute([
-                'weight' => $weight,
+                'weight' => round((float) $weight, 2),
                 'unit_id' => $unitId,
                 'criteria_code' => $criteriaCode,
             ]);
@@ -114,7 +114,7 @@ class UserModuleUnitCriteriaModel extends Model
             return [];
         }
 
-        $totalHundredths = 10000;
+        $totalHundredths = 100;
         $base = intdiv($totalHundredths, $count);
         $remainder = $totalHundredths - ($base * $count);
 

@@ -8,6 +8,7 @@ $selectedCodesByUnit = $selectedCodesByUnit ?? [];
 $criteriaDetailsByUnit = $criteriaDetailsByUnit ?? [];
 $summaryByUnit = $summaryByUnit ?? [];
 $summaryTotals = $summaryTotals ?? [];
+$weightsMatrix = $weightsMatrix ?? [];
 $errors = $errors ?? [];
 $old = $old ?? [];
 
@@ -541,7 +542,7 @@ foreach ($units as $unit) {
                 <?php endif; ?>
             <?php elseif ($stepKey === 'pesos'): ?>
                 <?php if ($isActive): ?>
-                    <?php if (empty($criteriaDetailsByUnit)): ?>
+                    <?php if (empty($weightsMatrix)): ?>
                         <div class="alert alert-info">Selecciona al menos un criterio para cada unidad antes de definir los pesos.</div>
                     <?php else: ?>
                         <form method="post" action="/modulos/configurar">
@@ -554,56 +555,345 @@ foreach ($units as $unit) {
 
                             <?php $oldWeights = $old['weights'] ?? []; ?>
 
-                            <?php foreach ($units as $unit): ?>
-                                <?php
-                                $unitId = (int) $unit['id'];
-                                $criteriaList = $criteriaDetailsByUnit[$unitId] ?? [];
-                                ?>
-                                <div class="card mb-3">
-                                    <div class="card-header bg-light">
-                                        <strong><?= htmlspecialchars($unitLabels[$unitId] ?? ('Unidad ' . $unitId)) ?></strong>
-                                    </div>
-                                    <div class="card-body">
-                                        <?php if (empty($criteriaList)): ?>
-                                            <p class="text-muted mb-0">Esta unidad no tiene criterios seleccionados.</p>
-                                        <?php else: ?>
-                                            <p class="text-muted small">Introduce el peso de cada criterio para esta unidad. La suma debe ser 100.</p>
-                                            <div class="table-responsive">
-                                                <table class="table table-sm align-middle">
-                                                    <thead>
-                                                        <tr>
-                                                            <th scope="col">Criterio</th>
-                                                            <th scope="col">Resultado de aprendizaje</th>
-                                                            <th scope="col" class="text-end">Peso (%)</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <?php foreach ($criteriaList as $code => $details): ?>
-                                                            <?php $value = $oldWeights[$unitId][$code] ?? ($details['weight'] ?? 0); ?>
-                                                            <tr>
-                                                                <td><strong><?= htmlspecialchars($details['letra']) ?>.</strong> <?= htmlspecialchars($details['descripcion']) ?></td>
-                                                                <td>RA <?= htmlspecialchars($details['resultado_numero']) ?></td>
-                                                                <td class="text-end" style="max-width: 140px;">
-                                                                    <input
-                                                                        type="number"
-                                                                        step="0.01"
-                                                                        min="0"
-                                                                        max="100"
-                                                                        class="form-control text-end"
-                                                                        name="weights[<?= (int) $unitId ?>][<?= htmlspecialchars($code) ?>]"
-                                                                        value="<?= htmlspecialchars(number_format((float) $value, 2, '.', '')) ?>"
-                                                                        required
-                                                                    >
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle weights-matrix">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col" class="text-nowrap">Código</th>
+                                            <th scope="col" class="text-nowrap">Resultados de aprendizaje</th>
+                                            <th scope="col">Criterios de evaluación</th>
+                                            <?php foreach ($units as $unit): ?>
+                                                <?php $unitId = (int) $unit['id']; ?>
+                                                <th scope="col" class="text-center bg-warning-subtle text-nowrap">Peso <?= htmlspecialchars($unitLabels[$unitId] ?? $unit['unit_label']) ?></th>
+                                            <?php endforeach; ?>
+                                            <th scope="col" class="text-center bg-warning-subtle text-nowrap">Peso RA</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php
+                                        $unitTotals = [];
+                                        foreach ($units as $unit) {
+                                            $unitTotals[(int) $unit['id']] = 0.0;
+                                        }
+                                        ?>
+                                        <?php foreach ($weightsMatrix as $raCode => $raData): ?>
+                                            <?php
+                                            $raUnitSums = [];
+                                            foreach ($units as $unit) {
+                                                $unitId = (int) $unit['id'];
+                                                $sum = 0.0;
+                                                if (!empty($raData['criteria'])) {
+                                                    foreach ($raData['criteria'] as $criterion) {
+                                                        if ((int) $criterion['unit_id'] !== $unitId) {
+                                                            continue;
+                                                        }
+                                                        $value = $oldWeights[$unitId][$criterion['code']] ?? $criterion['weight'];
+                                                        $sum += (float) $value;
+                                                    }
+                                                }
+                                                $raUnitSums[$unitId] = $sum;
+                                                $unitTotals[$unitId] += $sum;
+                                            }
+                                            $raTotal = array_sum($raUnitSums);
+                                            $raNumber = $raData['numero'] !== '' ? $raData['numero'] : $raData['codigo'];
+                                            ?>
+                                            <tr class="table-secondary fw-semibold">
+                                                <td>RA <?= htmlspecialchars($raNumber) ?></td>
+                                                <td colspan="2"><?= htmlspecialchars($raData['descripcion'] ?? '') ?></td>
+                                                <?php foreach ($units as $unit): ?>
+                                                    <?php $unitId = (int) $unit['id']; ?>
+                                                    <td class="bg-warning-subtle">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="0"
+                                                            max="1"
+                                                            class="form-control form-control-sm text-end ra-unit-input"
+                                                            name="ra_unit_weights[<?= $unitId ?>][<?= htmlspecialchars($raCode) ?>]"
+                                                            data-ra-code="<?= htmlspecialchars($raCode) ?>"
+                                                            data-unit-id="<?= $unitId ?>"
+                                                            value="<?= htmlspecialchars(number_format((float) $raUnitSums[$unitId], 2, '.', '')) ?>"
+                                                        >
+                                                    </td>
+                                                <?php endforeach; ?>
+                                                <td class="bg-warning-subtle">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        max="1"
+                                                        class="form-control form-control-sm text-end ra-total-input"
+                                                        name="ra_totals[<?= htmlspecialchars($raCode) ?>]"
+                                                        data-ra-code="<?= htmlspecialchars($raCode) ?>"
+                                                        value="<?= htmlspecialchars(number_format((float) $raTotal, 2, '.', '')) ?>"
+                                                    >
+                                                </td>
+                                            </tr>
+                                            <?php foreach ($raData['criteria'] as $criterion): ?>
+                                                <?php
+                                                $unitId = (int) $criterion['unit_id'];
+                                                $value = $oldWeights[$unitId][$criterion['code']] ?? $criterion['weight'];
+                                                $formattedValue = number_format((float) $value, 2, '.', '');
+                                                ?>
+                                                <tr>
+                                                    <td class="text-muted small">CE <?= htmlspecialchars($criterion['letra'] ?: $criterion['code']) ?></td>
+                                                    <td></td>
+                                                    <td><?= htmlspecialchars($criterion['descripcion']) ?></td>
+                                                    <?php foreach ($units as $unit): ?>
+                                                        <?php $cellUnitId = (int) $unit['id']; ?>
+                                                        <td<?php if ($cellUnitId === $unitId): ?> class="bg-warning-subtle"<?php endif; ?>>
+                                                            <?php if ($cellUnitId === $unitId): ?>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    min="0"
+                                                                    max="1"
+                                                                    class="form-control form-control-sm text-end ce-weight-input"
+                                                                    name="weights[<?= $cellUnitId ?>][<?= htmlspecialchars($criterion['code']) ?>]"
+                                                                    data-ra-code="<?= htmlspecialchars($raCode) ?>"
+                                                                    data-unit-id="<?= $cellUnitId ?>"
+                                                                    value="<?= htmlspecialchars($formattedValue) ?>"
+                                                                >
+                                                            <?php else: ?>
+                                                                <span class="text-muted">—</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                    <?php endforeach; ?>
+                                                    <td></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php endforeach; ?>
+                                        <tr class="table-light fw-semibold">
+                                            <td colspan="3" class="text-end">Total por unidad</td>
+                                            <?php foreach ($units as $unit): ?>
+                                                <?php $unitId = (int) $unit['id']; ?>
+                                                <td>
+                                                    <input
+                                                        type="number"
+                                                        class="form-control form-control-sm text-end unit-total-input"
+                                                        data-unit-id="<?= $unitId ?>"
+                                                        value="<?= htmlspecialchars(number_format((float) ($unitTotals[$unitId] ?? 0.0), 2, '.', '')) ?>"
+                                                        readonly
+                                                    >
+                                                </td>
+                                            <?php endforeach; ?>
+                                            <td></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <script>
+                                document.addEventListener('DOMContentLoaded', function () {
+                                    var matrix = document.querySelector('.weights-matrix');
+                                    if (!matrix) {
+                                        return;
+                                    }
+
+                                    var formatValue = function (value) {
+                                        if (!isFinite(value)) {
+                                            return '0.00';
+                                        }
+                                        return value.toFixed(2);
+                                    };
+
+                                    var updateRaUnitSum = function (raCode, unitId) {
+                                        var selector = '.ce-weight-input[data-ra-code="' + raCode + '"][data-unit-id="' + unitId + '"]';
+                                        var ceInputs = matrix.querySelectorAll(selector);
+                                        var sum = 0;
+                                        ceInputs.forEach(function (input) {
+                                            var value = parseFloat(input.value);
+                                            if (!isNaN(value)) {
+                                                sum += value;
+                                            }
+                                        });
+
+                                        var headerInput = matrix.querySelector('.ra-unit-input[data-ra-code="' + raCode + '"][data-unit-id="' + unitId + '"]');
+                                        if (headerInput) {
+                                            headerInput.value = formatValue(sum);
+                                        }
+
+                                        return sum;
+                                    };
+
+                                    var updateRaTotal = function (raCode) {
+                                        var total = 0;
+                                        matrix.querySelectorAll('.ra-unit-input[data-ra-code="' + raCode + '"]').forEach(function (input) {
+                                            var value = parseFloat(input.value);
+                                            if (!isNaN(value)) {
+                                                total += value;
+                                            }
+                                        });
+
+                                        var totalInput = matrix.querySelector('.ra-total-input[data-ra-code="' + raCode + '"]');
+                                        if (totalInput) {
+                                            totalInput.value = formatValue(total);
+                                        }
+
+                                        return total;
+                                    };
+
+                                    var updateUnitTotals = function () {
+                                        matrix.querySelectorAll('.unit-total-input').forEach(function (input) {
+                                            var unitId = input.getAttribute('data-unit-id');
+                                            var sum = 0;
+                                            matrix.querySelectorAll('.ra-unit-input[data-unit-id="' + unitId + '"]').forEach(function (unitInput) {
+                                                var value = parseFloat(unitInput.value);
+                                                if (!isNaN(value)) {
+                                                    sum += value;
+                                                }
+                                            });
+                                            input.value = formatValue(sum);
+                                        });
+                                    };
+
+                                    var scaleCriteriaForRaUnit = function (raCode, unitId, target) {
+                                        var selector = '.ce-weight-input[data-ra-code="' + raCode + '"][data-unit-id="' + unitId + '"]';
+                                        var ceInputs = matrix.querySelectorAll(selector);
+                                        if (ceInputs.length === 0) {
+                                            updateRaUnitSum(raCode, unitId);
+                                            return;
+                                        }
+
+                                        var currentSum = 0;
+                                        ceInputs.forEach(function (input) {
+                                            var value = parseFloat(input.value);
+                                            if (!isNaN(value)) {
+                                                currentSum += value;
+                                            }
+                                        });
+
+                                        var values = [];
+                                        if (currentSum <= 0) {
+                                            var equalShare = target / ceInputs.length;
+                                            ceInputs.forEach(function () {
+                                                values.push(equalShare);
+                                            });
+                                        } else {
+                                            var factor = target / currentSum;
+                                            ceInputs.forEach(function (input) {
+                                                var value = parseFloat(input.value);
+                                                if (isNaN(value)) {
+                                                    value = 0;
+                                                }
+                                                values.push(value * factor);
+                                            });
+                                        }
+
+                                        values.forEach(function (value, index) {
+                                            ceInputs[index].value = formatValue(value);
+                                        });
+
+                                        updateRaUnitSum(raCode, unitId);
+                                    };
+
+                                    var scaleRaByTotal = function (raCode, target) {
+                                        var unitInputs = matrix.querySelectorAll('.ra-unit-input[data-ra-code="' + raCode + '"]');
+                                        if (unitInputs.length === 0) {
+                                            return;
+                                        }
+
+                                        var currentTotal = 0;
+                                        unitInputs.forEach(function (input) {
+                                            var value = parseFloat(input.value);
+                                            if (!isNaN(value)) {
+                                                currentTotal += value;
+                                            }
+                                        });
+
+                                        if (currentTotal <= 0) {
+                                            var equal = target / unitInputs.length;
+                                            unitInputs.forEach(function (input) {
+                                                input.value = formatValue(equal);
+                                                var unitId = input.getAttribute('data-unit-id');
+                                                scaleCriteriaForRaUnit(raCode, unitId, equal);
+                                            });
+                                            updateRaTotal(raCode);
+                                            return;
+                                        }
+
+                                        var factor = target / currentTotal;
+                                        unitInputs.forEach(function (input) {
+                                            var currentValue = parseFloat(input.value);
+                                            if (isNaN(currentValue)) {
+                                                currentValue = 0;
+                                            }
+                                            var newValue = currentValue * factor;
+                                            input.value = formatValue(newValue);
+                                            var unitId = input.getAttribute('data-unit-id');
+                                            scaleCriteriaForRaUnit(raCode, unitId, newValue);
+                                        });
+
+                                        updateRaTotal(raCode);
+                                    };
+
+                                    matrix.querySelectorAll('.ce-weight-input').forEach(function (input) {
+                                        input.addEventListener('input', function (event) {
+                                            var targetInput = event.currentTarget;
+                                            var raCode = targetInput.getAttribute('data-ra-code');
+                                            var unitId = targetInput.getAttribute('data-unit-id');
+                                            updateRaUnitSum(raCode, unitId);
+                                            updateRaTotal(raCode);
+                                            updateUnitTotals();
+                                        });
+                                    });
+
+                                    matrix.querySelectorAll('.ra-unit-input').forEach(function (input) {
+                                        var handler = function (event) {
+                                            var targetInput = event.currentTarget;
+                                            var raCode = targetInput.getAttribute('data-ra-code');
+                                            var unitId = targetInput.getAttribute('data-unit-id');
+                                            var desired = parseFloat(targetInput.value);
+                                            if (isNaN(desired)) {
+                                                return;
+                                            }
+                                            scaleCriteriaForRaUnit(raCode, unitId, desired);
+                                            updateRaTotal(raCode);
+                                            updateUnitTotals();
+                                        };
+
+                                        input.addEventListener('change', handler);
+                                        input.addEventListener('blur', handler);
+                                    });
+
+                                    matrix.querySelectorAll('.ra-total-input').forEach(function (input) {
+                                        input.addEventListener('change', function (event) {
+                                            var targetInput = event.currentTarget;
+                                            var raCode = targetInput.getAttribute('data-ra-code');
+                                            var desired = parseFloat(targetInput.value);
+                                            if (isNaN(desired)) {
+                                                return;
+                                            }
+                                            scaleRaByTotal(raCode, desired);
+                                            matrix.querySelectorAll('.ra-unit-input[data-ra-code="' + raCode + '"]').forEach(function (unitInput) {
+                                                var unitId = unitInput.getAttribute('data-unit-id');
+                                                updateRaUnitSum(raCode, unitId);
+                                            });
+                                            updateRaTotal(raCode);
+                                            updateUnitTotals();
+                                        });
+                                    });
+
+                                    var initialize = function () {
+                                        matrix.querySelectorAll('.ra-unit-input').forEach(function (input) {
+                                            var raCode = input.getAttribute('data-ra-code');
+                                            var unitId = input.getAttribute('data-unit-id');
+                                            updateRaUnitSum(raCode, unitId);
+                                        });
+
+                                        matrix.querySelectorAll('.ra-total-input').forEach(function (input) {
+                                            var raCode = input.getAttribute('data-ra-code');
+                                            updateRaTotal(raCode);
+                                        });
+
+                                        updateUnitTotals();
+                                    };
+
+                                    initialize();
+                                });
+                            </script>
+
+                            <p class="text-muted small">Utiliza valores entre 0 y 1. La suma por unidad debe ser exactamente 1.</p>
 
                             <div class="d-flex justify-content-between">
                                 <a href="/modulos/configurar?id=<?= (int) ($module['id'] ?? 0) ?>&paso=criterios" class="btn btn-outline-secondary">Volver</a>
@@ -639,16 +929,16 @@ foreach ($units as $unit) {
                                         <div class="table-responsive">
                                             <table class="table table-sm">
                                                 <thead>
-                                                    <tr>
-                                                        <th scope="col">Resultado de aprendizaje</th>
-                                                        <th scope="col" class="text-end">Peso total (%)</th>
-                                                    </tr>
+                                                      <tr>
+                                                          <th scope="col">Resultado de aprendizaje</th>
+                                                          <th scope="col" class="text-end">Peso total</th>
+                                                      </tr>
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($summaryByUnit[$unitId] as $raCode => $info): ?>
                                                         <tr>
                                                             <td>RA <?= htmlspecialchars($info['numero']) ?> — <?= htmlspecialchars($info['descripcion']) ?></td>
-                                                            <td class="text-end"><?= htmlspecialchars(number_format((float) $info['weight'], 2, ',', '.')) ?></td>
+                                                            <td class="text-end"><?= htmlspecialchars(number_format((float) $info['weight'], 2, '.', '')) ?></td>
                                                         </tr>
                                                     <?php endforeach; ?>
                                                 </tbody>
@@ -671,7 +961,7 @@ foreach ($units as $unit) {
                                                 <?php foreach ($summaryTotals as $raCode => $info): ?>
                                                     <tr>
                                                         <th scope="row" class="w-75">RA <?= htmlspecialchars($info['numero']) ?> — <?= htmlspecialchars($info['descripcion']) ?></th>
-                                                        <td class="text-end"><?= htmlspecialchars(number_format((float) $info['weight'], 2, ',', '.')) ?> %</td>
+                                                        <td class="text-end"><?= htmlspecialchars(number_format((float) $info['weight'], 2, '.', '')) ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
