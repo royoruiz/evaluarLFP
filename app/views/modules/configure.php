@@ -59,11 +59,18 @@ foreach ($units as $unit) {
     .module-config-content {
         flex: 1 1 0%;
         min-width: 0;
+        max-width: 100%;
+        overflow-x: auto;
     }
 }
 
 .module-config-layout {
     width: 100%;
+}
+
+.module-config-content .card,
+.module-config-content .table-responsive {
+    max-width: 100%;
 }
 
 @media (max-width: 991.98px) {
