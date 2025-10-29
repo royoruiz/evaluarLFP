@@ -227,49 +227,121 @@ class UserModuleController extends Controller
                     $weightsInput = [];
                 }
 
-                $units = $unitModel->getByModule($moduleId);
-                $hasError = false;
-                $normalizedByUnit = [];
-                foreach ($units as $unit) {
-                    $unitId = (int) $unit['id'];
-                    $unitWeights = $weightsInput[$unitId] ?? [];
-                    if (!is_array($unitWeights) || empty($unitWeights)) {
+                $unitWeightsInput = $_POST['ra_unit_weights'] ?? [];
+                if (!is_array($unitWeightsInput)) {
+                    $unitWeightsInput = [];
+                }
+
+                $selectedCriteria = $criteriaModel->getByModule($moduleId);
+                $criteriaByOutcome = [];
+                foreach ($selectedCriteria as $criterion) {
+                    $outcomeCode = (string) ($criterion['codigo_resultado'] ?? '');
+                    if ($outcomeCode === '') {
                         continue;
                     }
 
-                    $normalizedWeights = [];
+                    if (!isset($criteriaByOutcome[$outcomeCode])) {
+                        $criteriaByOutcome[$outcomeCode] = [
+                            'criteria' => [],
+                        ];
+                    }
+
+                    $criteriaByOutcome[$outcomeCode]['criteria'][$criterion['criteria_code']] = [
+                        'unit_id' => (int) $criterion['user_module_unit_id'],
+                    ];
+                }
+
+                $hasError = false;
+                $errorMessage = '';
+                $normalizedByUnit = [];
+                $computedUnitWeights = [];
+
+                foreach ($criteriaByOutcome as $raCode => $data) {
+                    $criteriaForOutcome = $data['criteria'];
+                    if (empty($criteriaForOutcome)) {
+                        continue;
+                    }
+
+                    $inputsForOutcome = $weightsInput[$raCode] ?? [];
+                    if (!is_array($inputsForOutcome)) {
+                        $inputsForOutcome = [];
+                    }
+
                     $sum = 0.0;
-                    foreach ($unitWeights as $criteriaCode => $weightValue) {
-                        if (!is_numeric($weightValue)) {
+                    foreach ($criteriaForOutcome as $criteriaCode => $info) {
+                        if (!array_key_exists($criteriaCode, $inputsForOutcome)) {
                             $hasError = true;
-                            break;
+                            $errorMessage = 'Debes indicar un peso para cada criterio de evaluación seleccionado.';
+                            break 2;
                         }
 
-                        $weight = round((float) $weightValue, 2);
-                        if ($weight < 0 || $weight > 1) {
+                        $rawValue = $inputsForOutcome[$criteriaCode];
+                        if (!is_numeric($rawValue)) {
                             $hasError = true;
-                            break;
+                            $errorMessage = 'Los pesos deben ser valores numéricos.';
+                            break 2;
                         }
 
-                        $normalizedWeights[$criteriaCode] = $weight;
+                        $weight = round((float) $rawValue, 2);
+                        if ($weight < 0 || $weight > 100) {
+                            $hasError = true;
+                            $errorMessage = 'Los pesos de cada criterio deben estar comprendidos entre 0 y 100.';
+                            break 2;
+                        }
+
                         $sum += $weight;
+
+                        $unitId = $info['unit_id'];
+                        if (!isset($computedUnitWeights[$raCode][$unitId])) {
+                            $computedUnitWeights[$raCode][$unitId] = 0.0;
+                        }
+                        $computedUnitWeights[$raCode][$unitId] += $weight;
+
+                        if (!isset($normalizedByUnit[$unitId])) {
+                            $normalizedByUnit[$unitId] = [];
+                        }
+                        $normalizedByUnit[$unitId][$criteriaCode] = round($weight / 100, 4);
                     }
 
                     if ($hasError) {
                         break;
                     }
 
-                    if (!empty($normalizedWeights) && abs($sum - 1.0) > 0.01) {
+                    if (abs($sum - 100.0) > 0.5) {
                         $hasError = true;
+                        $errorMessage = 'Los pesos de los criterios de cada resultado de aprendizaje deben sumar 100%.';
                         break;
                     }
 
-                    $normalizedByUnit[$unitId] = $normalizedWeights;
+                    $unitTotals = $computedUnitWeights[$raCode] ?? [];
+                    $unitSum = array_sum($unitTotals);
+                    if (abs($unitSum - 100.0) > 0.5) {
+                        $hasError = true;
+                        $errorMessage = 'La distribución por unidades de cada resultado de aprendizaje no puede superar el 100%.';
+                        break;
+                    }
+
+                    if (isset($unitWeightsInput[$raCode]) && is_array($unitWeightsInput[$raCode])) {
+                        foreach ($unitWeightsInput[$raCode] as $value) {
+                            if ($value === '' || $value === null) {
+                                continue;
+                            }
+
+                            if (!is_numeric($value)) {
+                                $hasError = true;
+                                $errorMessage = 'Los pesos por unidad deben ser valores numéricos.';
+                                break 2;
+                            }
+                        }
+                    }
                 }
 
                 if ($hasError) {
-                    $_SESSION['errors']['module_wizard']['weights'] = 'Los pesos deben ser numéricos, estar entre 0 y 1 y sumar 1 en cada unidad.';
+                    $_SESSION['errors']['module_wizard']['weights'] = $errorMessage !== ''
+                        ? $errorMessage
+                        : 'No se pudo validar la distribución de pesos proporcionada.';
                     $_SESSION['old']['module_wizard']['weights'] = $weightsInput;
+                    $_SESSION['old']['module_wizard']['ra_unit_weights'] = $computedUnitWeights;
                     $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=pesos');
                 }
 
@@ -385,10 +457,11 @@ class UserModuleController extends Controller
                 $organized[$unitId] = [];
             }
 
+            $weight = $this->normalizeWeightValue((float) $row['total_weight']);
             $organized[$unitId][$row['ra_codigo']] = [
                 'numero' => $row['ra_numero'],
                 'descripcion' => $row['ra_descripcion'],
-                'weight' => $this->normalizeWeightValue((float) $row['total_weight']),
+                'weight' => round($weight * 100, 2),
             ];
         }
 
@@ -419,6 +492,7 @@ class UserModuleController extends Controller
         foreach ($totals as &$total) {
             $total['weight'] = round((float) $total['weight'], 2);
         }
+        unset($total);
 
         return $totals;
     }
@@ -430,42 +504,97 @@ class UserModuleController extends Controller
     {
         $pendingUpdates = [];
 
-        foreach ($criteriaDetailsByUnit as $unitId => &$criteriaList) {
-            $needsDefaultWeights = false;
-            $weightsByCode = [];
+        $criteriaByOutcome = [];
 
+        foreach ($criteriaDetailsByUnit as $unitId => &$criteriaList) {
             foreach ($criteriaList as $code => &$details) {
+                $outcomeCode = (string) ($details['codigo_resultado'] ?? '');
+                if ($outcomeCode === '') {
+                    continue;
+                }
+
+                if (!isset($criteriaByOutcome[$outcomeCode])) {
+                    $criteriaByOutcome[$outcomeCode] = [];
+                }
+
+                $criteriaByOutcome[$outcomeCode][] = [
+                    'unit_id' => (int) $unitId,
+                    'code' => $code,
+                    'details' => &$details,
+                ];
+            }
+            unset($details);
+        }
+        unset($criteriaList);
+
+        foreach ($criteriaByOutcome as $outcomeCode => $items) {
+            $needsDefault = false;
+            $sum = 0.0;
+            $weightsSnapshot = [];
+
+            foreach ($items as &$item) {
+                $details = &$item['details'];
                 if (!isset($details['weight']) || !is_numeric($details['weight'])) {
-                    $needsDefaultWeights = true;
+                    $needsDefault = true;
                     continue;
                 }
 
                 $normalized = $this->normalizeWeightValue((float) $details['weight']);
+                if ($normalized < 0.0) {
+                    $normalized = 0.0;
+                }
+
                 if ($normalized !== (float) $details['weight']) {
                     $details['weight'] = $normalized;
-                    $weightsByCode[$code] = $normalized;
                 }
+
+                $sum += $normalized;
+                $weightsSnapshot[] = $normalized;
             }
-            unset($details);
+            unset($item);
 
-            if ($needsDefaultWeights) {
-                $defaultWeights = $this->calculateDefaultWeightsForCount(count($criteriaList));
+            if ($needsDefault || $sum <= 0.0) {
+                $defaultWeights = $this->calculateDefaultWeightsForCount(count($items));
 
-                $index = 0;
-                foreach ($criteriaList as $code => &$details) {
+                foreach ($items as $index => &$item) {
                     $weight = $defaultWeights[$index] ?? 0.0;
-                    $details['weight'] = $weight;
-                    $weightsByCode[$code] = $weight;
-                    $index++;
+                    $item['details']['weight'] = $weight;
+                    $unitId = (int) $item['unit_id'];
+                    if (!isset($pendingUpdates[$unitId])) {
+                        $pendingUpdates[$unitId] = [];
+                    }
+                    $pendingUpdates[$unitId][$item['code']] = $weight;
                 }
-                unset($details);
+                unset($item);
+
+                continue;
             }
 
-            if (!empty($weightsByCode)) {
-                $pendingUpdates[(int) $unitId] = $weightsByCode;
+            if (abs($sum - 1.0) > 0.01) {
+                foreach ($items as $index => &$item) {
+                    $current = $weightsSnapshot[$index] ?? 0.0;
+                    $weight = $sum > 0 ? round($current / $sum, 2) : 0.0;
+                    $item['details']['weight'] = $weight;
+                    $unitId = (int) $item['unit_id'];
+                    if (!isset($pendingUpdates[$unitId])) {
+                        $pendingUpdates[$unitId] = [];
+                    }
+                    $pendingUpdates[$unitId][$item['code']] = $weight;
+                }
+                unset($item);
+            } else {
+                foreach ($items as &$item) {
+                    $weight = round((float) $item['details']['weight'], 2);
+                    $item['details']['weight'] = $weight;
+                    $unitId = (int) $item['unit_id'];
+                    if (!isset($pendingUpdates[$unitId])) {
+                        $pendingUpdates[$unitId] = [];
+                    }
+                    $pendingUpdates[$unitId][$item['code']] = $weight;
+                }
+                unset($item);
             }
         }
-        unset($criteriaList);
 
         foreach ($pendingUpdates as $unitId => $weights) {
             $criteriaModel->updateWeightsForUnit($unitId, $weights);
@@ -523,13 +652,21 @@ class UserModuleController extends Controller
                     ];
                 }
 
+                $normalizedWeight = $this->normalizeWeightValue((float) ($details['weight'] ?? 0.0));
+                $percentWeight = round($normalizedWeight * 100, 2);
+
                 $matrix[$raCode]['criteria'][$code] = [
                     'code' => $code,
                     'letra' => $details['letra'] ?? '',
                     'descripcion' => $details['descripcion'] ?? '',
                     'unit_id' => (int) $unitId,
-                    'weight' => $this->normalizeWeightValue((float) ($details['weight'] ?? 0.0)),
+                    'weight' => $percentWeight,
                 ];
+
+                if (!isset($matrix[$raCode]['units'][$unitId])) {
+                    $matrix[$raCode]['units'][$unitId] = 0.0;
+                }
+                $matrix[$raCode]['units'][$unitId] += $percentWeight;
             }
         }
 
@@ -551,6 +688,21 @@ class UserModuleController extends Controller
 
                 return strcmp($labelA, $labelB);
             });
+
+            $total = 0.0;
+            foreach ($raData['criteria'] as $criterion) {
+                $total += (float) ($criterion['weight'] ?? 0.0);
+            }
+            $raData['total'] = round($total, 2);
+
+            if (isset($raData['units'])) {
+                foreach ($raData['units'] as &$unitWeight) {
+                    $unitWeight = round((float) $unitWeight, 2);
+                }
+                unset($unitWeight);
+            } else {
+                $raData['units'] = [];
+            }
         }
         unset($raData);
 
