@@ -139,6 +139,7 @@ class UserModuleController extends Controller
 
         $unitModel = new UserModuleUnitModel();
         $criteriaModel = new UserModuleUnitCriteriaModel();
+        $currentState = $module['creation_state'] ?? 'unidades';
 
         switch ($step) {
             case 'unidades':
@@ -150,7 +151,7 @@ class UserModuleController extends Controller
                 }
 
                 $previousCount = (int) ($module['units_count'] ?? 0);
-                $previousState = $module['creation_state'] ?? 'unidades';
+                $previousState = $currentState;
                 $userModuleModel->updateUnitsCount($moduleId, $unitsCount);
                 if ($previousCount !== $unitsCount) {
                     $unitModel->replaceUnits($moduleId, $unitsCount);
@@ -178,8 +179,14 @@ class UserModuleController extends Controller
                 }
 
                 $unitModel->saveTrimesters($moduleId, $selection);
-                $userModuleModel->updateCreationState($moduleId, 'criterios');
-                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=criterios');
+
+                if ($this->shouldAdvanceState($currentState, 'criterios')) {
+                    $userModuleModel->updateCreationState($moduleId, 'criterios');
+                    $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=criterios');
+                }
+
+                $redirectStep = $currentState === 'completado' ? 'trimestres' : 'criterios';
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=' . $redirectStep);
                 break;
 
             case 'criterios':
@@ -203,8 +210,13 @@ class UserModuleController extends Controller
                     $criteriaModel->setCriteriaForUnit($unitId, $filtered);
                 }
 
-                $userModuleModel->updateCreationState($moduleId, 'pesos');
-                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=pesos');
+                if ($this->shouldAdvanceState($currentState, 'pesos')) {
+                    $userModuleModel->updateCreationState($moduleId, 'pesos');
+                    $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=pesos');
+                }
+
+                $redirectStep = $currentState === 'completado' ? 'criterios' : 'pesos';
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=' . $redirectStep);
                 break;
 
             case 'pesos':
@@ -263,8 +275,13 @@ class UserModuleController extends Controller
                     $criteriaModel->updateWeightsForUnit((int) $unitId, $normalizedWeights);
                 }
 
-                $userModuleModel->updateCreationState($moduleId, 'resumen');
-                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=resumen');
+                if ($this->shouldAdvanceState($currentState, 'resumen')) {
+                    $userModuleModel->updateCreationState($moduleId, 'resumen');
+                    $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=resumen');
+                }
+
+                $redirectStep = $currentState === 'completado' ? 'pesos' : 'resumen';
+                $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=' . $redirectStep);
                 break;
 
             case 'finalizar':
@@ -292,10 +309,6 @@ class UserModuleController extends Controller
             $requested = self::STEPS[0];
         }
 
-        if ($currentState === 'completado') {
-            return 'resumen';
-        }
-
         $requestedIndex = array_search($requested, self::STEPS, true);
         $currentIndex = array_search($currentState, self::STEPS, true);
 
@@ -303,11 +316,34 @@ class UserModuleController extends Controller
             $currentIndex = 0;
         }
 
+        if ($currentState === 'completado') {
+            return $requested;
+        }
+
         if ($requestedIndex === false || $requestedIndex > $currentIndex) {
             return self::STEPS[$currentIndex];
         }
 
         return $requested;
+    }
+
+    private function shouldAdvanceState(string $currentState, string $targetState): bool
+    {
+        if ($currentState === 'completado') {
+            return false;
+        }
+
+        $currentIndex = array_search($currentState, self::STEPS, true);
+        if ($currentIndex === false) {
+            $currentIndex = 0;
+        }
+
+        $targetIndex = array_search($targetState, self::STEPS, true);
+        if ($targetIndex === false) {
+            return false;
+        }
+
+        return $targetIndex > $currentIndex;
     }
 
     /**
