@@ -66,7 +66,7 @@ foreach ($units as $unit) {
     }
 }
 
-.weights-matrix .ra-criterion-entry {
+.weights-matrix .criterion-info {
     background-color: #fffdf0;
 }
 
@@ -77,6 +77,11 @@ foreach ($units as $unit) {
 
 .weights-matrix .ra-weight-row > td.bg-warning-subtle {
     background-color: #fff4c2 !important;
+}
+
+.weights-matrix .ra-total-indicator,
+.weights-matrix .ce-share-indicator {
+    font-variant-numeric: tabular-nums;
 }
 </style>
 
@@ -568,7 +573,7 @@ foreach ($units as $unit) {
 
                             <?php
                             $oldWeights = $old['weights'] ?? [];
-                            $oldRaUnitWeights = $old['ra_unit_weights'] ?? [];
+                            $oldCriterionUnitWeights = $old['criterion_unit_weights'] ?? [];
                             ?>
 
                             <div class="table-responsive">
@@ -577,7 +582,9 @@ foreach ($units as $unit) {
                                         <tr>
                                             <th scope="col" class="text-nowrap">RA</th>
                                             <th scope="col">Resultados de aprendizaje</th>
-                                            <th scope="col" class="bg-warning-subtle">Criterios de evaluación</th>
+                                            
+                                            <th scope="col">Criterios de evaluación</th>
+                                            <th scope="col" class="text-center bg-warning-subtle text-nowrap">Peso CE</th>
                                             <?php foreach ($units as $unit): ?>
                                                 <?php $unitId = (int) $unit['id']; ?>
                                                 <th scope="col" class="text-center bg-warning-subtle text-nowrap">Peso <?= htmlspecialchars($unitLabels[$unitId] ?? $unit['unit_label']) ?></th>
@@ -588,91 +595,113 @@ foreach ($units as $unit) {
                                         <?php foreach ($weightsMatrix as $raCode => $raData): ?>
                                             <?php
                                             $criteriaList = $raData['criteria'] ?? [];
-                                            $raOldCriteria = $oldWeights[$raCode] ?? [];
-                                            $raOldUnitWeights = $oldRaUnitWeights[$raCode] ?? [];
-                                            if (empty($raOldUnitWeights) && !empty($raOldCriteria)) {
-                                                foreach ($criteriaList as $criterion) {
-                                                    $criterionCode = $criterion['code'];
-                                                    $unitId = (int) $criterion['unit_id'];
-                                                    if (!isset($raOldUnitWeights[$unitId])) {
-                                                        $raOldUnitWeights[$unitId] = 0.0;
-                                                    }
-                                                    $raOldUnitWeights[$unitId] += (float) ($raOldCriteria[$criterionCode] ?? 0.0);
-                                                }
+                                            if (empty($criteriaList)) {
+                                                continue;
                                             }
 
-                                            $raTotal = !empty($raOldCriteria)
-                                                ? array_sum(array_map('floatval', $raOldCriteria))
-                                                : ($raData['total'] ?? 0.0);
+                                            $processedCriteria = [];
+                                            $raDisplayedTotal = 0.0;
+
+                                            foreach ($criteriaList as $criterionCode => $criterionInfo) {
+                                                $rawWeight = $oldWeights[$raCode][$criterionCode] ?? ($criterionInfo['weight'] ?? 0.0);
+                                                $weightValue = number_format((float) $rawWeight, 2, '.', '');
+                                                $raDisplayedTotal += (float) $weightValue;
+
+                                                $unitShares = [];
+                                                foreach ($units as $unit) {
+                                                    $unitId = (int) $unit['id'];
+                                                    if (isset($criterionInfo['unit_shares'][$unitId])) {
+                                                        $shareRaw = $oldCriterionUnitWeights[$raCode][$criterionCode][$unitId] ?? $criterionInfo['unit_shares'][$unitId];
+                                                        $unitShares[$unitId] = number_format((float) $shareRaw, 2, '.', '');
+                                                    } elseif (isset($oldCriterionUnitWeights[$raCode][$criterionCode][$unitId])) {
+                                                        $unitShares[$unitId] = number_format((float) $oldCriterionUnitWeights[$raCode][$criterionCode][$unitId], 2, '.', '');
+                                                    } else {
+                                                        $unitShares[$unitId] = null;
+                                                    }
+                                                }
+
+                                                $shareTotal = 0.0;
+                                                foreach ($unitShares as $shareValue) {
+                                                    if ($shareValue !== null) {
+                                                        $shareTotal += (float) $shareValue;
+                                                    }
+                                                }
+
+                                                $processedCriteria[] = [
+                                                    'code' => $criterionInfo['code'] ?? $criterionCode,
+                                                    'letra' => $criterionInfo['letra'] ?? '',
+                                                    'descripcion' => $criterionInfo['descripcion'] ?? '',
+                                                    'weight' => $weightValue,
+                                                    'shares' => $unitShares,
+                                                    'share_total' => number_format($shareTotal, 2, '.', ''),
+                                                ];
+                                            }
+
+                                            $rowspan = count($processedCriteria);
+                                            if ($rowspan === 0) {
+                                                continue;
+                                            }
+
                                             $raNumber = $raData['numero'] !== '' ? $raData['numero'] : $raData['codigo'];
+                                            $raTotalFormatted = number_format($raDisplayedTotal, 2, '.', '');
                                             ?>
-                                            <tr class="ra-weight-row" data-ra-code="<?= htmlspecialchars($raCode) ?>">
-                                                <td class="fw-semibold text-nowrap">RA <?= htmlspecialchars($raNumber) ?></td>
-                                                <td>
-                                                    <div class="d-flex flex-column gap-1">
-                                                        <div><?= htmlspecialchars($raData['descripcion'] ?? '') ?></div>
-                                                        <div class="small text-muted">Total RA: <span class="fw-semibold ra-total-indicator"><?= htmlspecialchars(number_format((float) $raTotal, 2, '.', '')) ?></span>%</div>
-                                                    </div>
-                                                </td>
-                                                <td class="bg-warning-subtle">
-                                                    <div class="d-flex flex-column gap-2">
-                                                        <?php foreach ($criteriaList as $criterion): ?>
-                                                            <?php
-                                                            $criterionCode = $criterion['code'];
-                                                            $unitId = (int) $criterion['unit_id'];
-                                                            $value = $raOldCriteria[$criterionCode] ?? $criterion['weight'];
-                                                            ?>
-                                                            <div class="ra-criterion-entry border rounded-2 p-2 bg-white">
-                                                                <div class="d-flex justify-content-between align-items-start gap-3">
-                                                                    <div>
-                                                                        <div class="fw-semibold text-nowrap">CE <?= htmlspecialchars($criterion['letra'] ?: $criterionCode) ?></div>
-                                                                        <div class="small text-muted"><?= htmlspecialchars($criterion['descripcion']) ?></div>
-                                                                    </div>
-                                                                    <div class="input-group input-group-sm flex-nowrap ra-input-group" style="width: 110px;">
-                                                                        <input
-                                                                            type="number"
-                                                                            step="0.01"
-                                                                            min="0"
-                                                                            max="100"
-                                                                            class="form-control text-end ce-weight-input"
-                                                                            name="weights[<?= htmlspecialchars($raCode) ?>][<?= htmlspecialchars($criterionCode) ?>]"
-                                                                            data-unit-id="<?= $unitId ?>"
-                                                                            value="<?= htmlspecialchars(number_format((float) $value, 2, '.', '')) ?>"
-                                                                        >
-                                                                        <span class="input-group-text">%</span>
-                                                                    </div>
-                                                                </div>
+                                            <?php foreach ($processedCriteria as $index => $criterion): ?>
+                                                <tr class="ra-weight-row" data-ra-code="<?= htmlspecialchars($raCode) ?>">
+                                                    <?php if ($index === 0): ?>
+                                                        <td class="fw-semibold text-nowrap align-top" rowspan="<?= $rowspan ?>">
+                                                            RA <?= htmlspecialchars($raNumber) ?>
+                                                            <div class="small text-muted mt-2">
+                                                                Total RA: <span class="fw-semibold ra-total-indicator"><?= htmlspecialchars($raTotalFormatted) ?></span>%
                                                             </div>
-                                                        <?php endforeach; ?>
-                                                    </div>
-                                                </td>
-                                                <?php foreach ($units as $unit): ?>
-                                                    <?php $unitId = (int) $unit['id']; ?>
-                                                    <?php
-                                                    $unitWeight = $raOldUnitWeights[$unitId] ?? ($raData['units'][$unitId] ?? 0.0);
-                                                    $hasUnitAssignment = array_key_exists($unitId, $raData['units'] ?? []);
-                                                    ?>
-                                                    <td class="bg-warning-subtle text-center">
-                                                        <?php if ($hasUnitAssignment || isset($raOldUnitWeights[$unitId])): ?>
-                                                            <div class="input-group input-group-sm ra-input-group justify-content-end" style="width: 110px; margin-left: auto;">
-                                                                <input
-                                                                    type="number"
-                                                                    step="0.01"
-                                                                    min="0"
-                                                                    max="100"
-                                                                    class="form-control text-end ra-unit-input"
-                                                                    name="ra_unit_weights[<?= htmlspecialchars($raCode) ?>][<?= $unitId ?>]"
-                                                                    data-unit-id="<?= $unitId ?>"
-                                                                    value="<?= htmlspecialchars(number_format((float) $unitWeight, 2, '.', '')) ?>"
-                                                                >
-                                                                <span class="input-group-text">%</span>
-                                                            </div>
-                                                        <?php else: ?>
-                                                            <span class="text-muted">—</span>
-                                                        <?php endif; ?>
+                                                        </td>
+                                                        <td class="align-top" rowspan="<?= $rowspan ?>">
+                                                            <?= nl2br(htmlspecialchars($raData['descripcion'] ?? '')) ?>
+                                                        </td>
+                                                    <?php endif; ?>
+                                                    <td class="align-top">
+                                                        <div class="criterion-info border rounded-2 p-2 bg-white h-100">
+                                                            <div class="fw-semibold text-nowrap">CE <?= htmlspecialchars($criterion['letra'] !== '' ? $criterion['letra'] : $criterion['code']) ?></div>
+                                                            <div class="small text-muted"><?= htmlspecialchars($criterion['descripcion']) ?></div>
+                                                            <div class="small text-muted mt-2">Total unidades: <span class="fw-semibold ce-share-indicator"><?= htmlspecialchars($criterion['share_total']) ?></span>%</div>
+                                                        </div>
                                                     </td>
-                                                <?php endforeach; ?>
-                                            </tr>
+                                                    <td class="bg-warning-subtle align-top">
+                                                        <div class="input-group input-group-sm ra-input-group" style="width: 110px;">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0"
+                                                                max="100"
+                                                                class="form-control text-end ce-weight-input"
+                                                                name="weights[<?= htmlspecialchars($raCode) ?>][<?= htmlspecialchars($criterion['code']) ?>]"
+                                                                value="<?= htmlspecialchars($criterion['weight']) ?>"
+                                                            >
+                                                            <span class="input-group-text">%</span>
+                                                        </div>
+                                                    </td>
+                                                    <?php foreach ($units as $unit): ?>
+                                                        <?php $unitId = (int) $unit['id']; ?>
+                                                        <td class="bg-warning-subtle text-center align-top">
+                                                            <?php if ($criterion['shares'][$unitId] !== null): ?>
+                                                                <div class="input-group input-group-sm justify-content-end" style="width: 110px; margin-left: auto;">
+                                                                    <input
+                                                                        type="number"
+                                                                        step="0.01"
+                                                                        min="0"
+                                                                        max="100"
+                                                                        class="form-control text-end ce-unit-input"
+                                                                        name="criterion_unit_weights[<?= htmlspecialchars($raCode) ?>][<?= htmlspecialchars($criterion['code']) ?>][<?= $unitId ?>]"
+                                                                        value="<?= htmlspecialchars($criterion['shares'][$unitId]) ?>"
+                                                                    >
+                                                                    <span class="input-group-text">%</span>
+                                                                </div>
+                                                            <?php else: ?>
+                                                                <span class="text-muted">—</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                    <?php endforeach; ?>
+                                                </tr>
+                                            <?php endforeach; ?>
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
@@ -691,133 +720,118 @@ foreach ($units as $unit) {
                                     return;
                                 }
 
-                                var formatValue = function (value) {
+                                var normalizeValue = function (input) {
+                                    var value = parseFloat(input.value);
                                     if (!isFinite(value)) {
-                                        return '0.00';
+                                        value = 0;
                                     }
-                                    return value.toFixed(2);
+                                    if (value < 0) {
+                                        value = 0;
+                                    }
+                                    if (value > 100) {
+                                        value = 100;
+                                    }
+                                    input.value = value.toFixed(2);
+                                    return value;
                                 };
 
+                                var groups = {};
+
                                 rows.forEach(function (row) {
-                                    var ceInputs = row.querySelectorAll('.ce-weight-input');
-                                    var unitInputs = row.querySelectorAll('.ra-unit-input');
-                                    var totalIndicator = row.querySelector('.ra-total-indicator');
+                                    var raCode = row.getAttribute('data-ra-code');
+                                    if (!raCode) {
+                                        return;
+                                    }
 
-                                    var updateFromCriteria = function () {
-                                        var totalsByUnit = {};
+                                    if (!groups[raCode]) {
+                                        groups[raCode] = {
+                                            rows: [],
+                                            indicator: null
+                                        };
+                                    }
+
+                                    groups[raCode].rows.push(row);
+
+                                    if (!groups[raCode].indicator) {
+                                        var indicator = row.querySelector('.ra-total-indicator');
+                                        if (indicator) {
+                                            groups[raCode].indicator = indicator;
+                                        }
+                                    }
+                                });
+
+                                Object.values(groups).forEach(function (group) {
+                                    var indicator = group.indicator;
+                                    if (!indicator) {
+                                        return;
+                                    }
+
+                                    var inputs = [];
+                                    group.rows.forEach(function (row) {
+                                        inputs = inputs.concat(Array.from(row.querySelectorAll('.ce-weight-input')));
+                                    });
+
+                                    var updateTotal = function () {
                                         var total = 0;
-
-                                        ceInputs.forEach(function (input) {
-                                            var unitId = input.getAttribute('data-unit-id');
+                                        inputs.forEach(function (input) {
                                             var value = parseFloat(input.value);
                                             if (!isFinite(value)) {
                                                 value = 0;
                                             }
-                                            if (value < 0) {
+                                            total += value;
+                                        });
+
+                                        indicator.textContent = total.toFixed(2);
+                                        indicator.classList.toggle('text-danger', Math.abs(total - 100) > 0.5);
+                                    };
+
+                                    inputs.forEach(function (input) {
+                                        input.addEventListener('input', updateTotal);
+                                        input.addEventListener('blur', function () {
+                                            normalizeValue(input);
+                                            updateTotal();
+                                        });
+                                    });
+
+                                    updateTotal();
+                                });
+
+                                rows.forEach(function (row) {
+                                    var shareIndicator = row.querySelector('.ce-share-indicator');
+                                    if (!shareIndicator) {
+                                        return;
+                                    }
+
+                                    var unitInputs = Array.from(row.querySelectorAll('.ce-unit-input'));
+                                    if (!unitInputs.length) {
+                                        shareIndicator.textContent = '0.00';
+                                        shareIndicator.classList.add('text-danger');
+                                        return;
+                                    }
+
+                                    var updateShare = function () {
+                                        var total = 0;
+                                        unitInputs.forEach(function (input) {
+                                            var value = parseFloat(input.value);
+                                            if (!isFinite(value)) {
                                                 value = 0;
                                             }
-                                            if (value > 100) {
-                                                value = 100;
-                                            }
-                                            input.value = value;
                                             total += value;
-                                            totalsByUnit[unitId] = (totalsByUnit[unitId] || 0) + value;
                                         });
 
-                                        unitInputs.forEach(function (input) {
-                                            var unitId = input.getAttribute('data-unit-id');
-                                            var value = totalsByUnit[unitId] || 0;
-                                            input.value = formatValue(value);
-                                        });
-
-                                        if (totalIndicator) {
-                                            totalIndicator.textContent = formatValue(total);
-                                            totalIndicator.classList.toggle('text-danger', Math.abs(total - 100) > 0.5);
-                                        }
+                                        shareIndicator.textContent = total.toFixed(2);
+                                        shareIndicator.classList.toggle('text-danger', Math.abs(total - 100) > 0.5);
                                     };
-
-                                    var normalizeOnBlur = function (input) {
-                                        var value = parseFloat(input.value);
-                                        if (!isFinite(value)) {
-                                            value = 0;
-                                        }
-                                        if (value < 0) {
-                                            value = 0;
-                                        }
-                                        if (value > 100) {
-                                            value = 100;
-                                        }
-                                        input.value = formatValue(value);
-                                    };
-
-                                    ceInputs.forEach(function (input) {
-                                        input.addEventListener('input', function () {
-                                            updateFromCriteria();
-                                        });
-
-                                        input.addEventListener('blur', function () {
-                                            normalizeOnBlur(input);
-                                            updateFromCriteria();
-                                        });
-                                    });
 
                                     unitInputs.forEach(function (input) {
-                                        input.addEventListener('input', function () {
-                                            var unitId = input.getAttribute('data-unit-id');
-                                            var desired = parseFloat(input.value);
-                                            if (!isFinite(desired)) {
-                                                desired = 0;
-                                            }
-                                            if (desired < 0) {
-                                                desired = 0;
-                                            }
-                                            if (desired > 100) {
-                                                desired = 100;
-                                            }
-
-                                            var unitCriteria = Array.from(ceInputs).filter(function (ceInput) {
-                                                return ceInput.getAttribute('data-unit-id') === unitId;
-                                            });
-
-                                            if (!unitCriteria.length) {
-                                                input.value = formatValue(0);
-                                                return;
-                                            }
-
-                                            var currentSum = unitCriteria.reduce(function (carry, ceInput) {
-                                                var value = parseFloat(ceInput.value);
-                                                if (!isFinite(value) || value < 0) {
-                                                    value = 0;
-                                                }
-                                                return carry + value;
-                                            }, 0);
-
-                                            if (currentSum <= 0) {
-                                                var evenShare = desired / unitCriteria.length;
-                                                unitCriteria.forEach(function (ceInput) {
-                                                    ceInput.value = formatValue(evenShare);
-                                                });
-                                            } else {
-                                                var scale = desired / currentSum;
-                                                unitCriteria.forEach(function (ceInput) {
-                                                    var value = parseFloat(ceInput.value);
-                                                    if (!isFinite(value) || value < 0) {
-                                                        value = 0;
-                                                    }
-                                                    ceInput.value = formatValue(value * scale);
-                                                });
-                                            }
-
-                                            updateFromCriteria();
-                                        });
-
+                                        input.addEventListener('input', updateShare);
                                         input.addEventListener('blur', function () {
-                                            normalizeOnBlur(input);
-                                            updateFromCriteria();
+                                            normalizeValue(input);
+                                            updateShare();
                                         });
                                     });
 
-                                    updateFromCriteria();
+                                    updateShare();
                                 });
                             });
                         </script>
