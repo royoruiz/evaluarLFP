@@ -73,6 +73,18 @@ foreach ($units as $unit) {
     max-width: 100%;
 }
 
+.weights-card .card-body {
+    overflow-x: auto;
+}
+
+.weights-table-wrapper {
+    overflow-x: auto;
+}
+
+.weights-matrix {
+    min-width: 720px;
+}
+
 @media (max-width: 991.98px) {
     .module-config-sidebar {
         margin-bottom: 1.5rem;
@@ -589,9 +601,9 @@ foreach ($units as $unit) {
                             $oldCriterionUnitWeights = $old['criterion_unit_weights'] ?? [];
                             ?>
 
-                            <div class="card">
+                            <div class="card weights-card">
                                 <div class="card-body">
-                                    <div class="table-responsive">
+                                    <div class="table-responsive weights-table-wrapper">
                                         <table class="table table-bordered align-middle weights-matrix mb-0">
                                     <thead class="table-light">
                                         <tr>
