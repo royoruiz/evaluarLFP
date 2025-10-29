@@ -83,7 +83,27 @@ class UserModuleController extends Controller
         }
 
         if (!empty($criteriaDetailsByUnit)) {
-            $this->ensureCriteriaWeights($criteriaDetailsByUnit, $unitCriteriaModel);
+            $forceDefaultWeights = ($module['creation_state'] ?? '') === 'pesos';
+
+            if (!$forceDefaultWeights) {
+                foreach ($criteriaDetailsByUnit as $unitCriteria) {
+                    $foundFractionScale = false;
+                    foreach ($unitCriteria as $criterionDetails) {
+                        $storedWeight = (float) ($criterionDetails['weight'] ?? 0.0);
+                        if ($storedWeight > 0.0 && $storedWeight <= 1.0) {
+                            $foundFractionScale = true;
+                            break;
+                        }
+                    }
+
+                    if ($foundFractionScale) {
+                        $forceDefaultWeights = true;
+                        break;
+                    }
+                }
+            }
+
+            $this->ensureCriteriaWeights($criteriaDetailsByUnit, $unitCriteriaModel, $forceDefaultWeights);
         }
 
         $availableCriteria = [];
@@ -227,9 +247,9 @@ class UserModuleController extends Controller
                     $weightsInput = [];
                 }
 
-                $unitWeightsInput = $_POST['ra_unit_weights'] ?? [];
-                if (!is_array($unitWeightsInput)) {
-                    $unitWeightsInput = [];
+                $criterionUnitInput = $_POST['criterion_unit_weights'] ?? [];
+                if (!is_array($criterionUnitInput)) {
+                    $criterionUnitInput = [];
                 }
 
                 $selectedCriteria = $criteriaModel->getByModule($moduleId);
@@ -246,15 +266,23 @@ class UserModuleController extends Controller
                         ];
                     }
 
-                    $criteriaByOutcome[$outcomeCode]['criteria'][$criterion['criteria_code']] = [
-                        'unit_id' => (int) $criterion['user_module_unit_id'],
-                    ];
+                    $criteriaCode = (string) $criterion['criteria_code'];
+                    if ($criteriaCode === '') {
+                        continue;
+                    }
+
+                    if (!isset($criteriaByOutcome[$outcomeCode]['criteria'][$criteriaCode])) {
+                        $criteriaByOutcome[$outcomeCode]['criteria'][$criteriaCode] = [
+                            'units' => [],
+                        ];
+                    }
+
+                    $criteriaByOutcome[$outcomeCode]['criteria'][$criteriaCode]['units'][(int) $criterion['user_module_unit_id']] = true;
                 }
 
                 $hasError = false;
                 $errorMessage = '';
                 $normalizedByUnit = [];
-                $computedUnitWeights = [];
 
                 foreach ($criteriaByOutcome as $raCode => $data) {
                     $criteriaForOutcome = $data['criteria'];
@@ -267,7 +295,8 @@ class UserModuleController extends Controller
                         $inputsForOutcome = [];
                     }
 
-                    $sum = 0.0;
+                    $raSum = 0.0;
+
                     foreach ($criteriaForOutcome as $criteriaCode => $info) {
                         if (!array_key_exists($criteriaCode, $inputsForOutcome)) {
                             $hasError = true;
@@ -289,59 +318,78 @@ class UserModuleController extends Controller
                             break 2;
                         }
 
-                        $sum += $weight;
+                        $raSum += $weight;
 
-                        $unitId = $info['unit_id'];
-                        if (!isset($computedUnitWeights[$raCode][$unitId])) {
-                            $computedUnitWeights[$raCode][$unitId] = 0.0;
+                        $unitIds = array_keys($info['units']);
+                        if (empty($unitIds)) {
+                            continue;
                         }
-                        $computedUnitWeights[$raCode][$unitId] += $weight;
 
-                        if (!isset($normalizedByUnit[$unitId])) {
-                            $normalizedByUnit[$unitId] = [];
+                        $unitInputs = $criterionUnitInput[$raCode][$criteriaCode] ?? [];
+                        if (!is_array($unitInputs)) {
+                            $unitInputs = [];
                         }
-                        $normalizedByUnit[$unitId][$criteriaCode] = round($weight / 100, 4);
+
+                        $shareSum = 0.0;
+
+                        foreach ($unitIds as $unitId) {
+                            if (!array_key_exists($unitId, $unitInputs)) {
+                                $hasError = true;
+                                $errorMessage = 'Debes indicar la distribución por unidades para cada criterio.';
+                                break 3;
+                            }
+
+                            $rawShare = $unitInputs[$unitId];
+                            if (!is_numeric($rawShare)) {
+                                $hasError = true;
+                                $errorMessage = 'La distribución por unidades debe ser numérica.';
+                                break 3;
+                            }
+
+                            $share = round((float) $rawShare, 2);
+                            if ($share < 0 || $share > 100) {
+                                $hasError = true;
+                                $errorMessage = 'Los porcentajes por unidad deben estar comprendidos entre 0 y 100.';
+                                break 3;
+                            }
+
+                            $shareSum += $share;
+
+                            if (!isset($normalizedByUnit[$unitId])) {
+                                $normalizedByUnit[$unitId] = [];
+                            }
+
+                            $normalizedByUnit[$unitId][$criteriaCode] = round($weight * ($share / 100), 2);
+                        }
+
+                        if ($hasError) {
+                            break 2;
+                        }
+
+                        if (abs($shareSum - 100.0) > 0.5) {
+                            $hasError = true;
+                            $errorMessage = 'La distribución por unidades de cada criterio debe sumar 100%.';
+                            break 2;
+                        }
                     }
 
                     if ($hasError) {
                         break;
                     }
 
-                    if (abs($sum - 100.0) > 0.5) {
+                    if (abs($raSum - 100.0) > 0.5) {
                         $hasError = true;
                         $errorMessage = 'Los pesos de los criterios de cada resultado de aprendizaje deben sumar 100%.';
                         break;
-                    }
-
-                    $unitTotals = $computedUnitWeights[$raCode] ?? [];
-                    $unitSum = array_sum($unitTotals);
-                    if (abs($unitSum - 100.0) > 0.5) {
-                        $hasError = true;
-                        $errorMessage = 'La distribución por unidades de cada resultado de aprendizaje no puede superar el 100%.';
-                        break;
-                    }
-
-                    if (isset($unitWeightsInput[$raCode]) && is_array($unitWeightsInput[$raCode])) {
-                        foreach ($unitWeightsInput[$raCode] as $value) {
-                            if ($value === '' || $value === null) {
-                                continue;
-                            }
-
-                            if (!is_numeric($value)) {
-                                $hasError = true;
-                                $errorMessage = 'Los pesos por unidad deben ser valores numéricos.';
-                                break 2;
-                            }
-                        }
                     }
                 }
 
                 if ($hasError) {
                     $_SESSION['errors']['module_wizard']['weights'] = $errorMessage !== ''
                         ? $errorMessage
-                        : 'No se pudo validar la distribución de pesos proporcionada.';
+                        : 'No se pudieron validar los pesos indicados.';
                     $_SESSION['old']['module_wizard']['weights'] = $weightsInput;
-                    $_SESSION['old']['module_wizard']['ra_unit_weights'] = $computedUnitWeights;
+                    $_SESSION['old']['module_wizard']['criterion_unit_weights'] = $criterionUnitInput;
                     $this->redirect('/modulos/configurar?id=' . $moduleId . '&paso=pesos');
                 }
 
@@ -498,106 +546,162 @@ class UserModuleController extends Controller
     }
 
     /**
-     * @param array<int, array<string, array<string, mixed>>> &$criteriaDetailsByUnit
+     * @param array<int, array<string, array<string, mixed>>> $criteriaDetailsByUnit
+     * @return array<string, array<string, mixed>>
      */
-    private function ensureCriteriaWeights(array &$criteriaDetailsByUnit, UserModuleUnitCriteriaModel $criteriaModel): void
+    private function collectOutcomeCriteriaData(array $criteriaDetailsByUnit): array
     {
-        $pendingUpdates = [];
+        $outcomes = [];
 
-        $criteriaByOutcome = [];
-
-        foreach ($criteriaDetailsByUnit as $unitId => &$criteriaList) {
-            foreach ($criteriaList as $code => &$details) {
-                $outcomeCode = (string) ($details['codigo_resultado'] ?? '');
-                if ($outcomeCode === '') {
+        foreach ($criteriaDetailsByUnit as $unitId => $criteriaList) {
+            foreach ($criteriaList as $code => $details) {
+                $raCode = (string) ($details['codigo_resultado'] ?? '');
+                if ($raCode === '') {
                     continue;
                 }
 
-                if (!isset($criteriaByOutcome[$outcomeCode])) {
-                    $criteriaByOutcome[$outcomeCode] = [];
+                if (!isset($outcomes[$raCode])) {
+                    $outcomes[$raCode] = [
+                        'codigo' => $raCode,
+                        'numero' => $details['resultado_numero'] ?? '',
+                        'descripcion' => $details['resultado_descripcion'] ?? '',
+                        'criteria' => [],
+                    ];
                 }
 
-                $criteriaByOutcome[$outcomeCode][] = [
-                    'unit_id' => (int) $unitId,
-                    'code' => $code,
-                    'details' => &$details,
-                ];
-            }
-            unset($details);
-        }
-        unset($criteriaList);
-
-        foreach ($criteriaByOutcome as $outcomeCode => $items) {
-            $needsDefault = false;
-            $sum = 0.0;
-            $weightsSnapshot = [];
-
-            foreach ($items as &$item) {
-                $details = &$item['details'];
-                if (!isset($details['weight']) || !is_numeric($details['weight'])) {
-                    $needsDefault = true;
-                    continue;
+                if (!isset($outcomes[$raCode]['criteria'][$code])) {
+                    $outcomes[$raCode]['criteria'][$code] = [
+                        'code' => $code,
+                        'letra' => $details['letra'] ?? '',
+                        'descripcion' => $details['descripcion'] ?? '',
+                        'units' => [],
+                    ];
                 }
 
-                $normalized = $this->normalizeWeightValue((float) $details['weight']);
+                $normalized = $this->normalizeWeightValue((float) ($details['weight'] ?? 0.0));
                 if ($normalized < 0.0) {
                     $normalized = 0.0;
                 }
 
-                if ($normalized !== (float) $details['weight']) {
-                    $details['weight'] = $normalized;
-                }
-
-                $sum += $normalized;
-                $weightsSnapshot[] = $normalized;
+                $outcomes[$raCode]['criteria'][$code]['units'][(int) $unitId] = $normalized;
             }
-            unset($item);
+        }
 
-            if ($needsDefault || $sum <= 0.0) {
-                $defaultWeights = $this->calculateDefaultWeightsForCount(count($items));
+        uasort($outcomes, static function (array $a, array $b): int {
+            $numeroA = (string) ($a['numero'] ?? '');
+            $numeroB = (string) ($b['numero'] ?? '');
 
-                foreach ($items as $index => &$item) {
-                    $weight = $defaultWeights[$index] ?? 0.0;
-                    $item['details']['weight'] = $weight;
-                    $unitId = (int) $item['unit_id'];
-                    if (!isset($pendingUpdates[$unitId])) {
-                        $pendingUpdates[$unitId] = [];
-                    }
-                    $pendingUpdates[$unitId][$item['code']] = $weight;
-                }
-                unset($item);
+            return strcmp($numeroA, $numeroB);
+        });
 
+        foreach ($outcomes as &$outcome) {
+            if (!isset($outcome['criteria'])) {
                 continue;
             }
 
-            if (abs($sum - 1.0) > 0.01) {
-                foreach ($items as $index => &$item) {
-                    $current = $weightsSnapshot[$index] ?? 0.0;
-                    $weight = $sum > 0 ? round($current / $sum, 2) : 0.0;
-                    $item['details']['weight'] = $weight;
-                    $unitId = (int) $item['unit_id'];
+            uasort($outcome['criteria'], static function (array $a, array $b): int {
+                $labelA = (string) ($a['letra'] ?? $a['code'] ?? '');
+                $labelB = (string) ($b['letra'] ?? $b['code'] ?? '');
+
+                return strcmp($labelA, $labelB);
+            });
+        }
+        unset($outcome);
+
+        return $outcomes;
+    }
+
+    /**
+     * @param array<int, array<string, array<string, mixed>>> &$criteriaDetailsByUnit
+     */
+    private function ensureCriteriaWeights(
+        array &$criteriaDetailsByUnit,
+        UserModuleUnitCriteriaModel $criteriaModel,
+        bool $forceDefaults = false
+    ): void
+    {
+        $outcomes = $this->collectOutcomeCriteriaData($criteriaDetailsByUnit);
+        $pendingUpdates = [];
+
+        foreach ($outcomes as $raData) {
+            $criteria = $raData['criteria'] ?? [];
+            if (empty($criteria)) {
+                continue;
+            }
+
+            $criteriaCount = count($criteria);
+            if ($criteriaCount === 0) {
+                continue;
+            }
+
+            $needsReset = $forceDefaults;
+            $totalByOutcome = 0.0;
+            $defaultRaWeights = $this->calculateDefaultWeightsForCount($criteriaCount);
+            $criterionIndex = 0;
+
+            foreach ($criteria as $criterionInfo) {
+                $units = $criterionInfo['units'] ?? [];
+                if (empty($units)) {
+                    $needsReset = true;
+                    $criterionIndex++;
+                    continue;
+                }
+
+                $criterionTotal = 0.0;
+                foreach ($units as $weight) {
+                    $value = $this->normalizeWeightValue((float) $weight);
+                    if ($value < 0.0) {
+                        $value = 0.0;
+                    }
+                    $criterionTotal += $value;
+                }
+
+                if ($criterionTotal <= 0.0) {
+                    $needsReset = true;
+                }
+
+                $totalByOutcome += $criterionTotal;
+                $criterionIndex++;
+            }
+
+            if (!$needsReset && abs($totalByOutcome - 1.0) <= 0.01) {
+                continue;
+            }
+
+            $criterionIndex = 0;
+
+            foreach ($criteria as $criterionCode => $criterionInfo) {
+                $units = $criterionInfo['units'] ?? [];
+                $unitIds = array_keys($units);
+                $unitCount = count($unitIds);
+                if ($unitCount === 0) {
+                    $criterionIndex++;
+                    continue;
+                }
+
+                $raWeight = $defaultRaWeights[$criterionIndex] ?? 0.0;
+                $defaultShares = $this->calculateDefaultWeightsForCount($unitCount);
+
+                foreach ($unitIds as $unitPosition => $unitId) {
+                    $share = $defaultShares[$unitPosition] ?? 0.0;
+                    $newWeight = round($raWeight * $share * 100, 2);
+
                     if (!isset($pendingUpdates[$unitId])) {
                         $pendingUpdates[$unitId] = [];
                     }
-                    $pendingUpdates[$unitId][$item['code']] = $weight;
-                }
-                unset($item);
-            } else {
-                foreach ($items as &$item) {
-                    $weight = round((float) $item['details']['weight'], 2);
-                    $item['details']['weight'] = $weight;
-                    $unitId = (int) $item['unit_id'];
-                    if (!isset($pendingUpdates[$unitId])) {
-                        $pendingUpdates[$unitId] = [];
+                    $pendingUpdates[$unitId][$criterionCode] = $newWeight;
+
+                    if (isset($criteriaDetailsByUnit[$unitId][$criterionCode])) {
+                        $criteriaDetailsByUnit[$unitId][$criterionCode]['weight'] = $newWeight;
                     }
-                    $pendingUpdates[$unitId][$item['code']] = $weight;
                 }
-                unset($item);
+
+                $criterionIndex++;
             }
         }
 
         foreach ($pendingUpdates as $unitId => $weights) {
-            $criteriaModel->updateWeightsForUnit($unitId, $weights);
+            $criteriaModel->updateWeightsForUnit((int) $unitId, $weights);
         }
     }
 
@@ -610,19 +714,18 @@ class UserModuleController extends Controller
             return [];
         }
 
-        $totalHundredths = 100;
-        $base = intdiv($totalHundredths, $count);
-        $remainder = $totalHundredths - ($base * $count);
-
         $weights = [];
+        $accumulated = 0.0;
+
         for ($index = 0; $index < $count; $index++) {
-            $hundredths = $base;
-            if ($remainder > 0) {
-                $hundredths++;
-                $remainder--;
+            if ($index === $count - 1) {
+                $value = max(0.0, 1.0 - $accumulated);
+            } else {
+                $value = 1.0 / $count;
+                $accumulated += $value;
             }
 
-            $weights[] = $hundredths / 100;
+            $weights[] = $value;
         }
 
         return $weights;
@@ -634,77 +737,105 @@ class UserModuleController extends Controller
      */
     private function buildWeightsMatrix(array $criteriaDetailsByUnit): array
     {
+        $outcomes = $this->collectOutcomeCriteriaData($criteriaDetailsByUnit);
         $matrix = [];
 
-        foreach ($criteriaDetailsByUnit as $unitId => $criteriaList) {
-            foreach ($criteriaList as $code => $details) {
-                $raCode = (string) ($details['codigo_resultado'] ?? '');
-                if ($raCode === '') {
-                    $raCode = 'ra_' . md5((string) $code);
-                }
-
-                if (!isset($matrix[$raCode])) {
-                    $matrix[$raCode] = [
-                        'codigo' => $raCode,
-                        'numero' => $details['resultado_numero'] ?? '',
-                        'descripcion' => $details['resultado_descripcion'] ?? '',
-                        'criteria' => [],
-                    ];
-                }
-
-                $normalizedWeight = $this->normalizeWeightValue((float) ($details['weight'] ?? 0.0));
-                $percentWeight = round($normalizedWeight * 100, 2);
-
-                $matrix[$raCode]['criteria'][$code] = [
-                    'code' => $code,
-                    'letra' => $details['letra'] ?? '',
-                    'descripcion' => $details['descripcion'] ?? '',
-                    'unit_id' => (int) $unitId,
-                    'weight' => $percentWeight,
-                ];
-
-                if (!isset($matrix[$raCode]['units'][$unitId])) {
-                    $matrix[$raCode]['units'][$unitId] = 0.0;
-                }
-                $matrix[$raCode]['units'][$unitId] += $percentWeight;
-            }
-        }
-
-        uasort($matrix, static function (array $a, array $b): int {
-            $numeroA = (string) ($a['numero'] ?? '');
-            $numeroB = (string) ($b['numero'] ?? '');
-
-            return strcmp($numeroA, $numeroB);
-        });
-
-        foreach ($matrix as &$raData) {
-            if (!isset($raData['criteria'])) {
+        foreach ($outcomes as $raCode => $raData) {
+            $criteria = $raData['criteria'] ?? [];
+            if (empty($criteria)) {
                 continue;
             }
 
-            uasort($raData['criteria'], static function (array $a, array $b): int {
-                $labelA = (string) ($a['letra'] ?? $a['code'] ?? '');
-                $labelB = (string) ($b['letra'] ?? $b['code'] ?? '');
+            $matrix[$raCode] = [
+                'codigo' => $raData['codigo'],
+                'numero' => $raData['numero'],
+                'descripcion' => $raData['descripcion'],
+                'criteria' => [],
+            ];
 
-                return strcmp($labelA, $labelB);
-            });
+            $criterionTotals = [];
+            $totalByOutcome = 0.0;
 
-            $total = 0.0;
-            foreach ($raData['criteria'] as $criterion) {
-                $total += (float) ($criterion['weight'] ?? 0.0);
-            }
-            $raData['total'] = round($total, 2);
+            foreach ($criteria as $criterionCode => $criterionInfo) {
+                $units = $criterionInfo['units'] ?? [];
+                $criterionTotal = 0.0;
 
-            if (isset($raData['units'])) {
-                foreach ($raData['units'] as &$unitWeight) {
-                    $unitWeight = round((float) $unitWeight, 2);
+                foreach ($units as $unitId => $weight) {
+                    $value = $this->normalizeWeightValue((float) $weight);
+                    if ($value < 0.0) {
+                        $value = 0.0;
+                    }
+
+                    $criterionTotal += $value;
+                    $units[$unitId] = $value;
                 }
-                unset($unitWeight);
-            } else {
-                $raData['units'] = [];
+
+                $criterionTotals[$criterionCode] = [
+                    'total' => $criterionTotal,
+                    'units' => $units,
+                    'letra' => $criterionInfo['letra'] ?? '',
+                    'descripcion' => $criterionInfo['descripcion'] ?? '',
+                ];
+
+                $totalByOutcome += $criterionTotal;
             }
+
+            $criteriaCount = count($criterionTotals);
+            $defaultRaWeights = $this->calculateDefaultWeightsForCount($criteriaCount);
+            $criterionIndex = 0;
+
+            foreach ($criterionTotals as $criterionCode => $info) {
+                $criterionTotal = $info['total'];
+                if ($totalByOutcome > 0.0) {
+                    $weightFraction = $criterionTotal > 0 ? $criterionTotal / $totalByOutcome : 0.0;
+                } else {
+                    $weightFraction = $defaultRaWeights[$criterionIndex] ?? 0.0;
+                }
+
+                if ($weightFraction < 0.0) {
+                    $weightFraction = 0.0;
+                }
+
+                $weightPercent = round($weightFraction * 100, 2);
+
+                $units = $info['units'];
+                $unitIds = array_keys($units);
+                $unitShares = [];
+                $shareTotal = 0.0;
+
+                if (!empty($unitIds)) {
+                    if ($criterionTotal > 0) {
+                        foreach ($unitIds as $unitId) {
+                            $unitWeight = $units[$unitId] ?? 0.0;
+                            $shareFraction = $criterionTotal > 0 ? ($unitWeight > 0 ? $unitWeight / $criterionTotal : 0.0) : 0.0;
+                            $sharePercent = round($shareFraction * 100, 2);
+                            $unitShares[$unitId] = $sharePercent;
+                            $shareTotal += $sharePercent;
+                        }
+                    } else {
+                        $defaultShares = $this->calculateDefaultWeightsForCount(count($unitIds));
+                        foreach ($unitIds as $index => $unitId) {
+                            $sharePercent = round(($defaultShares[$index] ?? 0.0) * 100, 2);
+                            $unitShares[$unitId] = $sharePercent;
+                            $shareTotal += $sharePercent;
+                        }
+                    }
+                }
+
+                $matrix[$raCode]['criteria'][$criterionCode] = [
+                    'code' => $criterionCode,
+                    'letra' => $info['letra'],
+                    'descripcion' => $info['descripcion'],
+                    'weight' => $weightPercent,
+                    'unit_shares' => $unitShares,
+                    'unit_share_total' => round($shareTotal, 2),
+                ];
+
+                $criterionIndex++;
+            }
+
+            $matrix[$raCode]['total'] = round(array_sum(array_column($matrix[$raCode]['criteria'], 'weight')), 2);
         }
-        unset($raData);
 
         return $matrix;
     }
@@ -712,9 +843,13 @@ class UserModuleController extends Controller
     private function normalizeWeightValue(float $weight): float
     {
         if ($weight > 1.0) {
-            return round($weight / 100, 2);
+            $weight = $weight / 100;
         }
 
-        return round($weight, 2);
+        if ($weight < 0.0) {
+            return 0.0;
+        }
+
+        return round($weight, 4);
     }
 }
