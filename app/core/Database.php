@@ -136,6 +136,30 @@ class Database
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         SQL;
 
+        $userModuleEvaluationsMigration = function (\PDO $connection): void {
+            $columnExistsQuery = <<<SQL
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'user_module_evaluations'
+              AND COLUMN_NAME = 'class_group';
+            SQL;
+
+            $statement = $connection->query($columnExistsQuery);
+
+            if ((int) $statement->fetchColumn() === 0) {
+                $connection->exec(<<<SQL
+                ALTER TABLE user_module_evaluations
+                    ADD COLUMN class_group VARCHAR(255) NOT NULL DEFAULT '' AFTER academic_year;
+                SQL);
+
+                $connection->exec(<<<SQL
+                ALTER TABLE user_module_evaluations
+                    ALTER COLUMN class_group DROP DEFAULT;
+                SQL);
+            }
+        };
+
         $evaluationUnitsTable = <<<SQL
         CREATE TABLE IF NOT EXISTS evaluation_units (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -278,6 +302,7 @@ class Database
         self::$connection->exec($userModulesTable);
         $userModuleTableMigration(self::$connection);
         self::$connection->exec($userModuleEvaluationsTable);
+        $userModuleEvaluationsMigration(self::$connection);
         self::$connection->exec($cyclesTable);
         self::$connection->exec($cycleModulesTable);
         self::$connection->exec($learningOutcomesTable);
