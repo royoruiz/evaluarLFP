@@ -61,6 +61,34 @@ class UserModuleUnitCriteriaModel extends Model
     /**
      * @return array<int, array<string, mixed>>
      */
+    public function getByUnit(int $unitId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT
+                 umuc.id,
+                 umuc.user_module_unit_id,
+                 umuc.criteria_code,
+                 umuc.weight,
+                 ce.letra,
+                 ce.descripcion,
+                 ce.codigo_resultado,
+                 ra.numero AS resultado_numero,
+                 ra.descripcion AS resultado_descripcion
+             FROM user_module_unit_criteria AS umuc
+             INNER JOIN criterios_evaluacion AS ce ON ce.codigo = umuc.criteria_code
+             INNER JOIN resultados_aprendizaje AS ra ON ra.codigo = ce.codigo_resultado
+             WHERE umuc.user_module_unit_id = :unit_id
+             ORDER BY ra.numero, ce.letra'
+        );
+
+        $statement->execute(['unit_id' => $unitId]);
+
+        return $statement->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function getUnitRaWeights(int $userModuleId): array
     {
         $statement = $this->db->prepare(
