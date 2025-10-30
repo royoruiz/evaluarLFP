@@ -84,9 +84,6 @@ class EvaluationController extends Controller
 
         $evaluationModel = new UserModuleEvaluationModel();
         $evaluationUnitModel = new EvaluationUnitModel();
-        $instrumentModel = new EvaluationInstrumentModel();
-        $instrumentCriteriaModel = new EvaluationInstrumentCriteriaModel();
-        $unitCriteriaModel = new UserModuleUnitCriteriaModel();
 
         $evaluationId = $evaluationModel->createEvaluation(
             $userId,
@@ -97,24 +94,6 @@ class EvaluationController extends Controller
         );
 
         $evaluationUnitModel->createFromModule($evaluationId, $moduleId);
-
-        $units = $evaluationUnitModel->getByEvaluation($evaluationId);
-        foreach ($units as $unit) {
-            $criteria = $unitCriteriaModel->getByUnit((int) $unit['module_unit_id']);
-            if (empty($criteria)) {
-                continue;
-            }
-
-            $instrumentId = $instrumentModel->create(
-                (int) $unit['evaluation_unit_id'],
-                'Instrumento de evaluación 1'
-            );
-
-            $instrumentCriteriaModel->setForInstrument(
-                $instrumentId,
-                array_map(static fn ($criterion) => $criterion['criteria_code'], $criteria)
-            );
-        }
 
         $_SESSION['success'] = 'Evaluación creada correctamente. Ajusta los instrumentos según necesites.';
         $this->redirect('/evaluaciones/editar?id=' . $evaluationId);
