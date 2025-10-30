@@ -88,236 +88,304 @@ $evaluationClass = $updateOld['class_group'] ?? ($evaluation['class_group'] ?? '
 
     <?php if (empty($units)): ?>
         <div class="alert alert-info">Esta evaluación no tiene unidades vinculadas al módulo.</div>
-    <?php endif; ?>
+    <?php else: ?>
+        <div class="evaluation-units-tabs">
+            <style>
+                .evaluation-units-tabs .tab-pane { display: none; }
+                .evaluation-units-tabs .tab-pane.active { display: block; }
+            </style>
 
-    <?php foreach ($units as $unit): ?>
-        <?php
-        $unitId = (int) ($unit['evaluation_unit_id'] ?? 0);
-        $unitCriteria = $unit['criteria'] ?? [];
-        $unitInstruments = $unit['instruments'] ?? [];
-        $missingCriteria = $unit['missing_criteria'] ?? [];
-        $allowedCodes = $unit['allowed_codes'] ?? [];
-        $unitError = $instrumentErrors[$unitId] ?? null;
-        ?>
-        <article id="unidad-<?= $unitId ?>" class="mb-5">
-            <div class="d-flex justify-content-between align-items-baseline mb-2">
-                <h3 class="h6 mb-0">
-                    Unidad <?= htmlspecialchars((string) ($unit['unit_number'] ?? '')) ?> ·
-                    <?= htmlspecialchars($unit['unit_label'] ?? '') ?>
-                </h3>
-                <span class="badge bg-secondary"><?= count($unitCriteria) ?> criterios</span>
-            </div>
+            <ul class="nav nav-tabs" role="tablist">
+                <?php foreach ($units as $index => $unit): ?>
+                    <?php $unitId = (int) ($unit['evaluation_unit_id'] ?? 0); ?>
+                    <li class="nav-item" role="presentation">
+                        <button
+                            id="unit-tab-<?= $unitId ?>"
+                            class="nav-link<?php if ($index === 0): ?> active<?php endif; ?>"
+                            type="button"
+                            role="tab"
+                            data-unit-target="unit-pane-<?= $unitId ?>"
+                            aria-controls="unit-pane-<?= $unitId ?>"
+                            aria-selected="<?= $index === 0 ? 'true' : 'false' ?>"
+                        >
+                            Unidad <?= htmlspecialchars((string) ($unit['unit_number'] ?? '')) ?>
+                        </button>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
 
-            <?php if (!empty($unitError)): ?>
-                <div class="alert alert-danger mb-3"><?= htmlspecialchars($unitError) ?></div>
-            <?php endif; ?>
+            <div class="tab-content border border-top-0 rounded-bottom p-4 bg-white">
+                <?php foreach ($units as $index => $unit): ?>
+                    <?php
+                    $unitId = (int) ($unit['evaluation_unit_id'] ?? 0);
+                    $unitCriteria = $unit['criteria'] ?? [];
+                    $unitInstruments = $unit['instruments'] ?? [];
+                    $missingCriteria = $unit['missing_criteria'] ?? [];
+                    $allowedCodes = $unit['allowed_codes'] ?? [];
+                    $unitError = $instrumentErrors[$unitId] ?? null;
+                    ?>
+                    <div
+                        id="unit-pane-<?= $unitId ?>"
+                        class="tab-pane<?php if ($index === 0): ?> active<?php endif; ?>"
+                        role="tabpanel"
+                        aria-labelledby="unit-tab-<?= $unitId ?>"
+                    >
+                        <article id="unidad-<?= $unitId ?>" class="mb-4">
+                            <div class="d-flex justify-content-between align-items-baseline mb-2">
+                                <h3 class="h6 mb-0">
+                                    Unidad <?= htmlspecialchars((string) ($unit['unit_number'] ?? '')) ?> ·
+                                    <?= htmlspecialchars($unit['unit_label'] ?? '') ?>
+                                </h3>
+                                <span class="badge bg-secondary"><?= count($unitCriteria) ?> criterios</span>
+                            </div>
 
-            <?php if (!empty($missingCriteria)): ?>
-                <div class="alert alert-warning mb-3">
-                    <strong>Faltan criterios por asignar:</strong>
-                    <ul class="mb-0 ps-3">
-                        <?php foreach ($missingCriteria as $criterion): ?>
-                            <li>
-                                RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> ·
-                                C<?= htmlspecialchars($criterion['letra'] ?? '') ?> -
-                                <?= htmlspecialchars($criterion['descripcion'] ?? '') ?>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            <?php else: ?>
-                <?php if (!empty($unitCriteria)): ?>
-                    <div class="alert alert-success mb-3">Todos los criterios de la unidad están cubiertos por los instrumentos.</div>
-                <?php endif; ?>
-            <?php endif; ?>
+                            <?php if (!empty($unitError)): ?>
+                                <div class="alert alert-danger mb-3"><?= htmlspecialchars($unitError) ?></div>
+                            <?php endif; ?>
 
-            <div class="row g-4">
-                <div class="col-lg-5">
-                    <div class="border rounded p-3 h-100">
-                        <h4 class="h6">Criterios del módulo</h4>
-                        <?php if (empty($unitCriteria)): ?>
-                            <p class="text-muted mb-0">Esta unidad no tiene criterios asociados en el módulo.</p>
-                        <?php else: ?>
-                            <ul class="list-unstyled mb-0 small">
-                                <?php foreach ($unitCriteria as $criterion): ?>
-                                    <li class="mb-2">
-                                        <strong>RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> · C<?= htmlspecialchars($criterion['letra'] ?? '') ?></strong><br>
-                                        <span class="text-muted"><?= htmlspecialchars($criterion['descripcion'] ?? '') ?></span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-                    </div>
-                </div>
+                            <?php if (!empty($missingCriteria)): ?>
+                                <div class="alert alert-warning mb-3">
+                                    <strong>Faltan criterios por asignar:</strong>
+                                    <ul class="mb-0 ps-3">
+                                        <?php foreach ($missingCriteria as $criterion): ?>
+                                            <li>
+                                                RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> ·
+                                                C<?= htmlspecialchars($criterion['letra'] ?? '') ?> -
+                                                <?= htmlspecialchars($criterion['descripcion'] ?? '') ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            <?php else: ?>
+                                <?php if (!empty($unitCriteria)): ?>
+                                    <div class="alert alert-success mb-3">Todos los criterios de la unidad están cubiertos por los instrumentos.</div>
+                                <?php endif; ?>
+                            <?php endif; ?>
 
-                <div class="col-lg-7">
-                    <?php if (empty($unitInstruments)): ?>
-                        <div class="alert alert-info">Aún no hay instrumentos creados para esta unidad.</div>
-                    <?php endif; ?>
-
-                    <?php foreach ($unitInstruments as $instrument): ?>
-                        <?php
-                        $instrumentId = (int) ($instrument['id'] ?? 0);
-                        $isEditing = is_array($instrumentOld)
-                            && ($instrumentOld['unit_id'] ?? 0) === $unitId
-                            && ($instrumentOld['instrument_id'] ?? 0) === $instrumentId;
-                        $instrumentName = $isEditing ? ($instrumentOld['name'] ?? '') : ($instrument['name'] ?? '');
-                        $instrumentDescription = $isEditing ? ($instrumentOld['description'] ?? '') : ($instrument['description'] ?? '');
-                        $instrumentCriteria = $isEditing ? ($instrumentOld['criteria'] ?? []) : array_map(
-                            static fn ($row) => $row['criteria_code'],
-                            $instrument['criteria'] ?? []
-                        );
-                        ?>
-                        <div class="card mb-4">
-                            <div class="card-body">
-                                <form method="POST" action="/evaluaciones/instrumentos/actualizar" class="mb-3">
-                                    <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
-                                    <input type="hidden" name="evaluation_unit_id" value="<?= $unitId ?>">
-                                    <input type="hidden" name="instrument_id" value="<?= $instrumentId ?>">
-
-                                    <div class="mb-3">
-                                        <label for="instrument-name-<?= $instrumentId ?>" class="form-label">Nombre del instrumento</label>
-                                        <input
-                                            type="text"
-                                            class="form-control"
-                                            id="instrument-name-<?= $instrumentId ?>"
-                                            name="name"
-                                            value="<?= htmlspecialchars($instrumentName) ?>"
-                                            maxlength="255"
-                                            required
-                                        >
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="instrument-description-<?= $instrumentId ?>" class="form-label">Descripción (opcional)</label>
-                                        <textarea
-                                            class="form-control"
-                                            id="instrument-description-<?= $instrumentId ?>"
-                                            name="description"
-                                            rows="2"
-                                        ><?= htmlspecialchars($instrumentDescription) ?></textarea>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <span class="form-label d-block">Criterios evaluados</span>
+                            <div class="row g-4">
+                                <div class="col-lg-5">
+                                    <div class="border rounded p-3 h-100">
+                                        <h4 class="h6">Criterios del módulo</h4>
                                         <?php if (empty($unitCriteria)): ?>
-                                            <p class="text-muted mb-0">No hay criterios que asignar.</p>
+                                            <p class="text-muted mb-0">Esta unidad no tiene criterios asociados en el módulo.</p>
                                         <?php else: ?>
-                                            <div class="row row-cols-1 row-cols-sm-2 g-2">
+                                            <ul class="list-unstyled mb-0 small">
                                                 <?php foreach ($unitCriteria as $criterion): ?>
-                                                    <?php $code = $criterion['criteria_code']; ?>
-                                                    <div class="col">
-                                                        <div class="form-check">
-                                                            <input
-                                                                class="form-check-input"
-                                                                type="checkbox"
-                                                                value="<?= htmlspecialchars($code) ?>"
-                                                                id="instrument-<?= $instrumentId ?>-criterion-<?= htmlspecialchars($code) ?>"
-                                                                name="criteria[]"
-                                                                <?php if (in_array($code, $instrumentCriteria, true)): ?>checked<?php endif; ?>
-                                                            >
-                                                            <label class="form-check-label" for="instrument-<?= $instrumentId ?>-criterion-<?= htmlspecialchars($code) ?>">
-                                                                RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> · C<?= htmlspecialchars($criterion['letra'] ?? '') ?>
-                                                            </label>
-                                                        </div>
-                                                    </div>
+                                                    <li class="mb-2">
+                                                        <strong>RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> · C<?= htmlspecialchars($criterion['letra'] ?? '') ?></strong><br>
+                                                        <span class="text-muted"><?= htmlspecialchars($criterion['descripcion'] ?? '') ?></span>
+                                                    </li>
                                                 <?php endforeach; ?>
-                                            </div>
+                                            </ul>
                                         <?php endif; ?>
                                     </div>
-
-                                    <div class="d-flex justify-content-between">
-                                        <button type="submit" class="btn btn-primary btn-sm">Actualizar instrumento</button>
-                                    </div>
-                                </form>
-
-                                <form
-                                    method="POST"
-                                    action="/evaluaciones/instrumentos/eliminar"
-                                    onsubmit="return confirm('¿Seguro que quieres eliminar este instrumento?');"
-                                >
-                                    <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
-                                    <input type="hidden" name="evaluation_unit_id" value="<?= $unitId ?>">
-                                    <input type="hidden" name="instrument_id" value="<?= $instrumentId ?>">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar instrumento</button>
-                                </form>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-
-                    <div class="card">
-                        <div class="card-body">
-                            <h4 class="h6">Añadir instrumento</h4>
-                            <form method="POST" action="/evaluaciones/instrumentos">
-                                <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
-                                <input type="hidden" name="evaluation_unit_id" value="<?= $unitId ?>">
-
-                                <?php
-                                $isCreating = is_array($instrumentOld) && ($instrumentOld['unit_id'] ?? 0) === $unitId && empty($instrumentOld['instrument_id'] ?? null);
-                                $newInstrumentName = $isCreating ? ($instrumentOld['name'] ?? '') : '';
-                                $newInstrumentDescription = $isCreating ? ($instrumentOld['description'] ?? '') : '';
-                                $newInstrumentCriteria = $isCreating ? ($instrumentOld['criteria'] ?? []) : $allowedCodes;
-                                ?>
-
-                                <div class="mb-3">
-                                    <label for="new-instrument-name-<?= $unitId ?>" class="form-label">Nombre</label>
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        id="new-instrument-name-<?= $unitId ?>"
-                                        name="name"
-                                        value="<?= htmlspecialchars($newInstrumentName) ?>"
-                                        maxlength="255"
-                                        required
-                                    >
                                 </div>
 
-                                <div class="mb-3">
-                                    <label for="new-instrument-description-<?= $unitId ?>" class="form-label">Descripción (opcional)</label>
-                                    <textarea
-                                        class="form-control"
-                                        id="new-instrument-description-<?= $unitId ?>"
-                                        name="description"
-                                        rows="2"
-                                    ><?= htmlspecialchars($newInstrumentDescription) ?></textarea>
-                                </div>
-
-                                <div class="mb-3">
-                                    <span class="form-label d-block">Criterios evaluados</span>
-                                    <?php if (empty($unitCriteria)): ?>
-                                        <p class="text-muted mb-0">No hay criterios que asignar.</p>
-                                    <?php else: ?>
-                                        <div class="row row-cols-1 row-cols-sm-2 g-2">
-                                            <?php foreach ($unitCriteria as $criterion): ?>
-                                                <?php $code = $criterion['criteria_code']; ?>
-                                                <div class="col">
-                                                    <div class="form-check">
-                                                        <input
-                                                            class="form-check-input"
-                                                            type="checkbox"
-                                                            value="<?= htmlspecialchars($code) ?>"
-                                                            id="new-instrument-<?= $unitId ?>-criterion-<?= htmlspecialchars($code) ?>"
-                                                            name="criteria[]"
-                                                            <?php if (in_array($code, $newInstrumentCriteria, true)): ?>checked<?php endif; ?>
-                                                        >
-                                                        <label class="form-check-label" for="new-instrument-<?= $unitId ?>-criterion-<?= htmlspecialchars($code) ?>">
-                                                            RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> · C<?= htmlspecialchars($criterion['letra'] ?? '') ?>
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
+                                <div class="col-lg-7">
+                                    <?php if (empty($unitInstruments)): ?>
+                                        <div class="alert alert-info">Aún no hay instrumentos creados para esta unidad.</div>
                                     <?php endif; ?>
-                                </div>
 
-                                <div class="d-flex justify-content-end">
-                                    <button type="submit" class="btn btn-outline-primary btn-sm">Añadir instrumento</button>
+                                    <?php foreach ($unitInstruments as $instrument): ?>
+                                        <?php
+                                        $instrumentId = (int) ($instrument['id'] ?? 0);
+                                        $isEditing = is_array($instrumentOld)
+                                            && ($instrumentOld['unit_id'] ?? 0) === $unitId
+                                            && ($instrumentOld['instrument_id'] ?? 0) === $instrumentId;
+                                        $instrumentName = $isEditing ? ($instrumentOld['name'] ?? '') : ($instrument['name'] ?? '');
+                                        $instrumentDescription = $isEditing ? ($instrumentOld['description'] ?? '') : ($instrument['description'] ?? '');
+                                        $instrumentCriteria = $isEditing ? ($instrumentOld['criteria'] ?? []) : array_map(
+                                            static fn ($row) => $row['criteria_code'],
+                                            $instrument['criteria'] ?? []
+                                        );
+                                        ?>
+                                        <div class="card mb-4">
+                                            <div class="card-body">
+                                                <form method="POST" action="/evaluaciones/instrumentos/actualizar" class="mb-3">
+                                                    <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
+                                                    <input type="hidden" name="evaluation_unit_id" value="<?= $unitId ?>">
+                                                    <input type="hidden" name="instrument_id" value="<?= $instrumentId ?>">
+
+                                                    <div class="mb-3">
+                                                        <label for="instrument-name-<?= $instrumentId ?>" class="form-label">Nombre del instrumento</label>
+                                                        <input
+                                                            type="text"
+                                                            class="form-control"
+                                                            id="instrument-name-<?= $instrumentId ?>"
+                                                            name="name"
+                                                            value="<?= htmlspecialchars($instrumentName) ?>"
+                                                            maxlength="255"
+                                                            required
+                                                        >
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label for="instrument-description-<?= $instrumentId ?>" class="form-label">Descripción (opcional)</label>
+                                                        <textarea
+                                                            class="form-control"
+                                                            id="instrument-description-<?= $instrumentId ?>"
+                                                            name="description"
+                                                            rows="2"
+                                                        ><?= htmlspecialchars($instrumentDescription) ?></textarea>
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <span class="form-label d-block">Criterios evaluados</span>
+                                                        <?php if (empty($unitCriteria)): ?>
+                                                            <p class="text-muted mb-0">No hay criterios que asignar.</p>
+                                                        <?php else: ?>
+                                                            <div class="row row-cols-1 row-cols-sm-2 g-2">
+                                                                <?php foreach ($unitCriteria as $criterion): ?>
+                                                                    <?php $code = $criterion['criteria_code']; ?>
+                                                                    <div class="col">
+                                                                        <div class="form-check">
+                                                                            <input
+                                                                                class="form-check-input"
+                                                                                type="checkbox"
+                                                                                value="<?= htmlspecialchars($code) ?>"
+                                                                                id="instrument-<?= $instrumentId ?>-criterion-<?= htmlspecialchars($code) ?>"
+                                                                                name="criteria[]"
+                                                                                <?php if (in_array($code, $instrumentCriteria, true)): ?>checked<?php endif; ?>
+                                                                            >
+                                                                            <label class="form-check-label" for="instrument-<?= $instrumentId ?>-criterion-<?= htmlspecialchars($code) ?>">
+                                                                                RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> · C<?= htmlspecialchars($criterion['letra'] ?? '') ?>
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                <?php endforeach; ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+
+                                                    <div class="d-flex justify-content-between">
+                                                        <button type="submit" class="btn btn-primary btn-sm">Actualizar instrumento</button>
+                                                    </div>
+                                                </form>
+
+                                                <form
+                                                    method="POST"
+                                                    action="/evaluaciones/instrumentos/eliminar"
+                                                    onsubmit="return confirm('¿Seguro que quieres eliminar este instrumento?');"
+                                                >
+                                                    <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
+                                                    <input type="hidden" name="evaluation_unit_id" value="<?= $unitId ?>">
+                                                    <input type="hidden" name="instrument_id" value="<?= $instrumentId ?>">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar instrumento</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h4 class="h6">Añadir instrumento</h4>
+                                            <form method="POST" action="/evaluaciones/instrumentos">
+                                                <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
+                                                <input type="hidden" name="evaluation_unit_id" value="<?= $unitId ?>">
+
+                                                <?php
+                                                $isCreating = is_array($instrumentOld) && ($instrumentOld['unit_id'] ?? 0) === $unitId && empty($instrumentOld['instrument_id'] ?? null);
+                                                $newInstrumentName = $isCreating ? ($instrumentOld['name'] ?? '') : '';
+                                                $newInstrumentDescription = $isCreating ? ($instrumentOld['description'] ?? '') : '';
+                                                $newInstrumentCriteria = $isCreating ? ($instrumentOld['criteria'] ?? []) : $allowedCodes;
+                                                ?>
+
+                                                <div class="mb-3">
+                                                    <label for="new-instrument-name-<?= $unitId ?>" class="form-label">Nombre</label>
+                                                    <input
+                                                        type="text"
+                                                        class="form-control"
+                                                        id="new-instrument-name-<?= $unitId ?>"
+                                                        name="name"
+                                                        value="<?= htmlspecialchars($newInstrumentName) ?>"
+                                                        maxlength="255"
+                                                        required
+                                                    >
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label for="new-instrument-description-<?= $unitId ?>" class="form-label">Descripción (opcional)</label>
+                                                    <textarea
+                                                        class="form-control"
+                                                        id="new-instrument-description-<?= $unitId ?>"
+                                                        name="description"
+                                                        rows="2"
+                                                    ><?= htmlspecialchars($newInstrumentDescription) ?></textarea>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <span class="form-label d-block">Criterios evaluados</span>
+                                                    <?php if (empty($unitCriteria)): ?>
+                                                        <p class="text-muted mb-0">No hay criterios que asignar.</p>
+                                                    <?php else: ?>
+                                                        <div class="row row-cols-1 row-cols-sm-2 g-2">
+                                                            <?php foreach ($unitCriteria as $criterion): ?>
+                                                                <?php $code = $criterion['criteria_code']; ?>
+                                                                <div class="col">
+                                                                    <div class="form-check">
+                                                                        <input
+                                                                            class="form-check-input"
+                                                                            type="checkbox"
+                                                                            value="<?= htmlspecialchars($code) ?>"
+                                                                            id="new-instrument-<?= $unitId ?>-criterion-<?= htmlspecialchars($code) ?>"
+                                                                            name="criteria[]"
+                                                                            <?php if (in_array($code, $newInstrumentCriteria, true)): ?>checked<?php endif; ?>
+                                                                        >
+                                                                        <label class="form-check-label" for="new-instrument-<?= $unitId ?>-criterion-<?= htmlspecialchars($code) ?>">
+                                                                            RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> · C<?= htmlspecialchars($criterion['letra'] ?? '') ?>
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+
+                                                <div class="d-flex justify-content-end">
+                                                    <button type="submit" class="btn btn-outline-primary btn-sm">Añadir instrumento</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
-                            </form>
-                        </div>
+                            </div>
+                        </article>
                     </div>
-                </div>
+                <?php endforeach; ?>
             </div>
-        </article>
-    <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 </section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.evaluation-units-tabs').forEach(function (container) {
+        var buttons = container.querySelectorAll('[data-unit-target]');
+        var panes = container.querySelectorAll('.tab-pane');
+
+        buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                var targetId = button.getAttribute('data-unit-target');
+                if (!targetId) {
+                    return;
+                }
+
+                buttons.forEach(function (btn) {
+                    btn.classList.remove('active');
+                    btn.setAttribute('aria-selected', 'false');
+                });
+                button.classList.add('active');
+                button.setAttribute('aria-selected', 'true');
+
+                panes.forEach(function (pane) {
+                    pane.classList.remove('active');
+                });
+                var target = container.querySelector('#' + targetId);
+                if (target) {
+                    target.classList.add('active');
+                }
+            });
+        });
+    });
+});
+</script>
