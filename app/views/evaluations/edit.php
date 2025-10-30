@@ -231,7 +231,7 @@ $evaluationClass = $updateOld['class_group'] ?? ($evaluation['class_group'] ?? '
 
                                 <div class="col-lg-7">
                                     <?php if (empty($unitInstruments)): ?>
-                                        <div class="alert alert-info">Aún no hay instrumentos creados para esta unidad.</div>
+                                        <div class="alert alert-warning">En esta unidad faltan CE por evaluar.</div>
                                     <?php endif; ?>
 
                                     <?php foreach ($unitInstruments as $instrument): ?>
