@@ -123,6 +123,7 @@ class Database
             user_module_id INT UNSIGNED DEFAULT NULL,
             evaluation_name VARCHAR(255) NOT NULL,
             academic_year VARCHAR(9) NOT NULL DEFAULT '25/26',
+            class_group VARCHAR(255) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_user_module_evaluations_user
                 FOREIGN KEY (user_id) REFERENCES users(id)
@@ -132,6 +133,77 @@ class Database
                 ON DELETE SET NULL,
             INDEX idx_user_module_evaluations_user (user_id),
             INDEX idx_user_module_evaluations_module (user_module_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        SQL;
+
+        $userModuleEvaluationsMigration = function (\PDO $connection): void {
+            $columnExistsQuery = <<<SQL
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'user_module_evaluations'
+              AND COLUMN_NAME = 'class_group';
+            SQL;
+
+            $statement = $connection->query($columnExistsQuery);
+
+            if ((int) $statement->fetchColumn() === 0) {
+                $connection->exec(<<<SQL
+                ALTER TABLE user_module_evaluations
+                    ADD COLUMN class_group VARCHAR(255) NOT NULL DEFAULT '' AFTER academic_year;
+                SQL);
+
+                $connection->exec(<<<SQL
+                ALTER TABLE user_module_evaluations
+                    ALTER COLUMN class_group DROP DEFAULT;
+                SQL);
+            }
+        };
+
+        $evaluationUnitsTable = <<<SQL
+        CREATE TABLE IF NOT EXISTS evaluation_units (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            evaluation_id INT UNSIGNED NOT NULL,
+            user_module_unit_id INT UNSIGNED NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_evaluation_units_evaluation
+                FOREIGN KEY (evaluation_id) REFERENCES user_module_evaluations(id)
+                ON DELETE CASCADE,
+            CONSTRAINT fk_evaluation_units_module_unit
+                FOREIGN KEY (user_module_unit_id) REFERENCES user_module_units(id)
+                ON DELETE CASCADE,
+            UNIQUE KEY uniq_evaluation_unit (evaluation_id, user_module_unit_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        SQL;
+
+        $evaluationInstrumentsTable = <<<SQL
+        CREATE TABLE IF NOT EXISTS evaluation_instruments (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            evaluation_unit_id INT UNSIGNED NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            description TEXT DEFAULT NULL,
+            weight DECIMAL(6,2) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_evaluation_instruments_unit
+                FOREIGN KEY (evaluation_unit_id) REFERENCES evaluation_units(id)
+                ON DELETE CASCADE,
+            INDEX idx_evaluation_instruments_unit (evaluation_unit_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        SQL;
+
+        $evaluationInstrumentCriteriaTable = <<<SQL
+        CREATE TABLE IF NOT EXISTS evaluation_instrument_criteria (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            evaluation_instrument_id INT UNSIGNED NOT NULL,
+            criteria_code VARCHAR(20) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_evaluation_instrument_criteria_instrument
+                FOREIGN KEY (evaluation_instrument_id) REFERENCES evaluation_instruments(id)
+                ON DELETE CASCADE,
+            CONSTRAINT fk_evaluation_instrument_criteria_criterion
+                FOREIGN KEY (criteria_code) REFERENCES criterios_evaluacion(codigo)
+                ON DELETE CASCADE,
+            UNIQUE KEY uniq_evaluation_instrument_criteria (evaluation_instrument_id, criteria_code)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         SQL;
 
@@ -230,11 +302,15 @@ class Database
         self::$connection->exec($userModulesTable);
         $userModuleTableMigration(self::$connection);
         self::$connection->exec($userModuleEvaluationsTable);
+        $userModuleEvaluationsMigration(self::$connection);
         self::$connection->exec($cyclesTable);
         self::$connection->exec($cycleModulesTable);
         self::$connection->exec($learningOutcomesTable);
         self::$connection->exec($evaluationCriteriaTable);
         self::$connection->exec($userModuleUnitsTable);
         self::$connection->exec($userModuleCriteriaTable);
+        self::$connection->exec($evaluationUnitsTable);
+        self::$connection->exec($evaluationInstrumentsTable);
+        self::$connection->exec($evaluationInstrumentCriteriaTable);
     }
 }
