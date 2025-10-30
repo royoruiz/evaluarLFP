@@ -124,6 +124,7 @@ class Database
             evaluation_name VARCHAR(255) NOT NULL,
             academic_year VARCHAR(9) NOT NULL DEFAULT '25/26',
             class_group VARCHAR(255) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'Activa',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_user_module_evaluations_user
                 FOREIGN KEY (user_id) REFERENCES users(id)
@@ -156,6 +157,29 @@ class Database
                 $connection->exec(<<<SQL
                 ALTER TABLE user_module_evaluations
                     ALTER COLUMN class_group DROP DEFAULT;
+                SQL);
+            }
+
+            $statusColumnExistsQuery = <<<SQL
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'user_module_evaluations'
+              AND COLUMN_NAME = 'status';
+            SQL;
+
+            $statusStatement = $connection->query($statusColumnExistsQuery);
+
+            if ((int) $statusStatement->fetchColumn() === 0) {
+                $connection->exec(<<<SQL
+                ALTER TABLE user_module_evaluations
+                    ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Activa' AFTER class_group;
+                SQL);
+
+                $connection->exec(<<<SQL
+                UPDATE user_module_evaluations
+                SET status = 'Activa'
+                WHERE status IS NULL OR status = '';
                 SQL);
             }
         };

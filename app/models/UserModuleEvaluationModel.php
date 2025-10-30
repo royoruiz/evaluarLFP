@@ -13,12 +13,13 @@ class UserModuleEvaluationModel extends Model
             ume.evaluation_name,
             ume.academic_year,
             ume.class_group,
+            ume.status,
             ume.created_at,
             ume.user_module_id,
             um.module_name
         FROM user_module_evaluations AS ume
         LEFT JOIN user_modules AS um ON um.id = ume.user_module_id
-        WHERE ume.user_id = :user_id
+        WHERE ume.user_id = :user_id AND ume.status = 'Activa'
         ORDER BY ume.academic_year DESC, um.module_name ASC, ume.evaluation_name ASC
         SQL;
 
@@ -61,6 +62,7 @@ class UserModuleEvaluationModel extends Model
             ume.evaluation_name,
             ume.academic_year,
             ume.class_group,
+            ume.status,
             ume.created_at,
             um.module_code,
             COALESCE(mc.nombre, um.module_name) AS module_name,
@@ -100,5 +102,14 @@ class UserModuleEvaluationModel extends Model
             'class_group' => $classGroup,
             'id' => $evaluationId,
         ]);
+    }
+
+    public function markAsDeleted(int $evaluationId): void
+    {
+        $statement = $this->db->prepare(
+            "UPDATE user_module_evaluations SET status = 'Borrada' WHERE id = :id"
+        );
+
+        $statement->execute(['id' => $evaluationId]);
     }
 }

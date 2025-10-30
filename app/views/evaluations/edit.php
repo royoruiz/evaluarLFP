@@ -12,12 +12,25 @@ $evaluationYear = $updateOld['academic_year'] ?? ($evaluation['academic_year'] ?
 $evaluationClass = $updateOld['class_group'] ?? ($evaluation['class_group'] ?? '');
 ?>
 
-<div class="mb-4">
-    <h1 class="h4 mb-1">Editar evaluación</h1>
-    <p class="text-muted mb-0">
-        <?= htmlspecialchars($evaluation['evaluation_name'] ?? 'Evaluación sin nombre') ?> ·
-        <?= htmlspecialchars($evaluation['module_name'] ?? 'Módulo sin asignar') ?>
-    </p>
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <h1 class="h4 mb-1">Editar evaluación</h1>
+        <p class="text-muted mb-0">
+            <?= htmlspecialchars($evaluation['evaluation_name'] ?? 'Evaluación sin nombre') ?> ·
+            <?= htmlspecialchars($evaluation['module_name'] ?? 'Módulo sin asignar') ?>
+        </p>
+    </div>
+
+    <form method="POST" action="/evaluaciones/eliminar" class="d-flex">
+        <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
+        <button
+            type="submit"
+            class="btn btn-outline-danger"
+            onclick="return confirm('¿Seguro que deseas eliminar esta evaluación?');"
+        >
+            Eliminar evaluación
+        </button>
+    </form>
 </div>
 
 <?php if (!empty($generalError)): ?>

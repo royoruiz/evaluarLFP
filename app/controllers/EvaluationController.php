@@ -115,6 +115,13 @@ class EvaluationController extends Controller
 
         if ($evaluation === null) {
             $_SESSION['errors']['general'] = 'La evaluación solicitada no existe o no tienes acceso a ella.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        if (($evaluation['status'] ?? 'Activa') !== 'Activa') {
+            $_SESSION['errors']['general'] = 'La evaluación solicitada ha sido eliminada.';
+            $_SESSION['active_tab'] = 'evaluations';
             $this->redirect('/');
         }
 
@@ -226,6 +233,13 @@ class EvaluationController extends Controller
 
         if ($evaluation === null) {
             $_SESSION['errors']['general'] = 'La evaluación indicada no existe.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        if (($evaluation['status'] ?? 'Activa') !== 'Activa') {
+            $_SESSION['errors']['general'] = 'No se pueden modificar evaluaciones eliminadas.';
+            $_SESSION['active_tab'] = 'evaluations';
             $this->redirect('/');
         }
 
@@ -282,6 +296,13 @@ class EvaluationController extends Controller
         $evaluation = $evaluationModel->findForUser($evaluationId, $userId);
         if ($evaluation === null) {
             $_SESSION['errors']['general'] = 'No tienes acceso a esta evaluación.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        if (($evaluation['status'] ?? 'Activa') !== 'Activa') {
+            $_SESSION['errors']['general'] = 'No se pueden modificar evaluaciones eliminadas.';
+            $_SESSION['active_tab'] = 'evaluations';
             $this->redirect('/');
         }
 
@@ -355,6 +376,13 @@ class EvaluationController extends Controller
         $evaluation = $evaluationModel->findForUser($evaluationId, $userId);
         if ($evaluation === null) {
             $_SESSION['errors']['general'] = 'No tienes acceso a esta evaluación.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        if (($evaluation['status'] ?? 'Activa') !== 'Activa') {
+            $_SESSION['errors']['general'] = 'No se pueden modificar evaluaciones eliminadas.';
+            $_SESSION['active_tab'] = 'evaluations';
             $this->redirect('/');
         }
 
@@ -437,6 +465,13 @@ class EvaluationController extends Controller
         $evaluation = $evaluationModel->findForUser($evaluationId, $userId);
         if ($evaluation === null) {
             $_SESSION['errors']['general'] = 'No tienes acceso a esta evaluación.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        if (($evaluation['status'] ?? 'Activa') !== 'Activa') {
+            $_SESSION['errors']['general'] = 'No se pueden modificar evaluaciones eliminadas.';
+            $_SESSION['active_tab'] = 'evaluations';
             $this->redirect('/');
         }
 
@@ -473,6 +508,39 @@ class EvaluationController extends Controller
         $instrumentModel->delete($instrumentId);
         $_SESSION['success'] = 'Instrumento eliminado correctamente.';
         $this->redirect('/evaluaciones/editar?id=' . $evaluationId . '#unidad-' . $evaluationUnitId);
+    }
+
+    public function delete(): void
+    {
+        $this->ensureAuthenticated();
+
+        $evaluationId = (int) ($_POST['evaluation_id'] ?? 0);
+        if ($evaluationId <= 0) {
+            $_SESSION['errors']['general'] = 'No se pudo completar la operación solicitada.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        $userId = (int) $_SESSION['user_id'];
+        $evaluationModel = new UserModuleEvaluationModel();
+        $evaluation = $evaluationModel->findForUser($evaluationId, $userId);
+
+        if ($evaluation === null) {
+            $_SESSION['errors']['general'] = 'La evaluación indicada no existe.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        if (($evaluation['status'] ?? 'Activa') !== 'Activa') {
+            $_SESSION['success'] = 'La evaluación ya estaba eliminada.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        $evaluationModel->markAsDeleted($evaluationId);
+        $_SESSION['success'] = 'Evaluación eliminada correctamente.';
+        $_SESSION['active_tab'] = 'evaluations';
+        $this->redirect('/');
     }
 
     private function ensureAuthenticated(): void

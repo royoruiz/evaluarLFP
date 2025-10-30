@@ -219,7 +219,19 @@ $wizardOld = $old['module_wizard'] ?? [];
                                         <td><?= htmlspecialchars($evaluation['academic_year'] ?? '25/26') ?></td>
                                         <td><?= htmlspecialchars($evaluation['class_group'] ?? '-') ?></td>
                                         <td class="text-end">
-                                            <a href="/evaluaciones/editar?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-secondary btn-sm">Editar</a>
+                                            <div class="d-inline-flex gap-2">
+                                                <a href="/evaluaciones/editar?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-secondary btn-sm">Editar</a>
+                                                <form method="POST" action="/evaluaciones/eliminar" class="d-inline">
+                                                    <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
+                                                    <button
+                                                        type="submit"
+                                                        class="btn btn-outline-danger btn-sm"
+                                                        onclick="return confirm('¿Seguro que deseas eliminar esta evaluación?');"
+                                                    >
+                                                        Eliminar
+                                                    </button>
+                                                </form>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

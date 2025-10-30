@@ -134,6 +134,11 @@ class App
             $controller->deleteInstrument();
         });
 
+        $this->router->add('POST', '/evaluaciones/eliminar', function () {
+            $controller = new EvaluationController();
+            $controller->delete();
+        });
+
         $this->router->add('GET', '/login', function () {
             $controller = new AuthController();
             $controller->showLogin();
