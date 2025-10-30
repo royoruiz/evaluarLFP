@@ -99,6 +99,46 @@ class App
             $controller->saveStep();
         });
 
+        $this->router->add('GET', '/evaluaciones/nuevo', function () {
+            $controller = new EvaluationController();
+            $controller->create();
+        });
+
+        $this->router->add('POST', '/evaluaciones', function () {
+            $controller = new EvaluationController();
+            $controller->store();
+        });
+
+        $this->router->add('GET', '/evaluaciones/editar', function () {
+            $controller = new EvaluationController();
+            $controller->edit();
+        });
+
+        $this->router->add('POST', '/evaluaciones/actualizar', function () {
+            $controller = new EvaluationController();
+            $controller->update();
+        });
+
+        $this->router->add('POST', '/evaluaciones/instrumentos', function () {
+            $controller = new EvaluationController();
+            $controller->storeInstrument();
+        });
+
+        $this->router->add('POST', '/evaluaciones/instrumentos/actualizar', function () {
+            $controller = new EvaluationController();
+            $controller->updateInstrument();
+        });
+
+        $this->router->add('POST', '/evaluaciones/instrumentos/eliminar', function () {
+            $controller = new EvaluationController();
+            $controller->deleteInstrument();
+        });
+
+        $this->router->add('POST', '/evaluaciones/eliminar', function () {
+            $controller = new EvaluationController();
+            $controller->delete();
+        });
+
         $this->router->add('GET', '/login', function () {
             $controller = new AuthController();
             $controller->showLogin();

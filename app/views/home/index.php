@@ -207,6 +207,7 @@ $wizardOld = $old['module_wizard'] ?? [];
                                     <th scope="col">Evaluación</th>
                                     <th scope="col">Módulo</th>
                                     <th scope="col" class="text-nowrap">Año académico</th>
+                                    <th scope="col">Grupo</th>
                                     <th scope="col" class="text-end">Acciones</th>
                                 </tr>
                             </thead>
@@ -216,10 +217,20 @@ $wizardOld = $old['module_wizard'] ?? [];
                                         <td><?= htmlspecialchars($evaluation['evaluation_name'] ?? '') ?></td>
                                         <td><?= htmlspecialchars($evaluation['module_name'] ?? 'Sin módulo vinculado') ?></td>
                                         <td><?= htmlspecialchars($evaluation['academic_year'] ?? '25/26') ?></td>
+                                        <td><?= htmlspecialchars($evaluation['class_group'] ?? '-') ?></td>
                                         <td class="text-end">
-                                            <div class="btn-group" role="group" aria-label="Acciones de la evaluación">
-                                                <button type="button" class="btn btn-outline-secondary btn-sm">Editar</button>
-                                                <button type="button" class="btn btn-outline-danger btn-sm">Borrar</button>
+                                            <div class="d-inline-flex gap-2">
+                                                <a href="/evaluaciones/editar?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-secondary btn-sm">Editar</a>
+                                                <form method="POST" action="/evaluaciones/eliminar" class="d-inline">
+                                                    <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
+                                                    <button
+                                                        type="submit"
+                                                        class="btn btn-outline-danger btn-sm"
+                                                        onclick="return confirm('¿Seguro que deseas eliminar esta evaluación?');"
+                                                    >
+                                                        Eliminar
+                                                    </button>
+                                                </form>
                                             </div>
                                         </td>
                                     </tr>
@@ -230,7 +241,7 @@ $wizardOld = $old['module_wizard'] ?? [];
                 <?php endif; ?>
 
                 <div class="d-flex justify-content-end">
-                    <button type="button" class="btn btn-primary">Añadir evaluación</button>
+                    <a href="/evaluaciones/nuevo" class="btn btn-primary">Añadir evaluación</a>
                 </div>
             </div>
         </div>
