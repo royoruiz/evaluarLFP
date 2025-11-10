@@ -444,7 +444,8 @@ $evaluationClass = $updateOld['class_group'] ?? ($evaluation['class_group'] ?? '
                                                                                 value="<?= htmlspecialchars($code) ?>"
                                                                                 id="new-instrument-<?= $unitId ?>-criterion-<?= htmlspecialchars($code) ?>"
                                                                                 name="criteria[]"
-                                                                                <?php if (in_array($code, $newInstrumentCriteria, true)): ?>checked<?php endif; ?>
+                                                                                
+                                                                                
                                                                             >
                                                                             <label class="form-check-label" for="new-instrument-<?= $unitId ?>-criterion-<?= htmlspecialchars($code) ?>">
                                                                                 RA<?= htmlspecialchars($criterion['resultado_numero'] ?? '') ?> · C<?= htmlspecialchars($criterion['letra'] ?? '') ?>
@@ -473,6 +474,14 @@ $evaluationClass = $updateOld['class_group'] ?? ($evaluation['class_group'] ?? '
         </div>
     <?php endif; ?>
 </section>
+
+<?php
+/** 
+ * 20251110.NRR:
+ * Añadir esta linea si hace falta que esten todo los CE seleccionados por defecto al crear un nuevo instrumento
+ *   447 <?php if (in_array($code, $newInstrumentCriteria, true)): ?>checked<?php endif; ?>
+*/
+?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
