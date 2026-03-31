@@ -139,6 +139,26 @@ class App
             $controller->delete();
         });
 
+        $this->router->add('GET', '/evaluaciones/notas', function () {
+            $controller = new EvaluationController();
+            $controller->grades();
+        });
+
+        $this->router->add('POST', '/evaluaciones/notas/guardar', function () {
+            $controller = new EvaluationController();
+            $controller->saveGrades();
+        });
+
+        $this->router->add('GET', '/evaluaciones/notas/plantilla', function () {
+            $controller = new EvaluationController();
+            $controller->downloadGradesTemplate();
+        });
+
+        $this->router->add('POST', '/evaluaciones/notas/importar', function () {
+            $controller = new EvaluationController();
+            $controller->importGradesCsv();
+        });
+
         $this->router->add('GET', '/grupos/editar', function () {
             $controller = new GroupController();
             $controller->edit();

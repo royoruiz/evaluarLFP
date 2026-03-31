@@ -61,6 +61,16 @@ class GroupStudentModel extends Model
         return $result !== false ? $result : null;
     }
 
+    public function findActiveByNia(int $groupId, string $nia): ?array
+    {
+        $student = $this->findByNia($groupId, $nia);
+        if ($student === null) {
+            return null;
+        }
+
+        return ($student['status'] ?? '') === 'Activa' ? $student : null;
+    }
+
     private function findByNia(int $groupId, string $nia): ?array
     {
         $statement = $this->db->prepare(

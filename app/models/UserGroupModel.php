@@ -50,4 +50,23 @@ class UserGroupModel extends Model
         $statement = $this->db->prepare("UPDATE user_groups SET status = 'Borrada' WHERE id = :id");
         $statement->execute(['id' => $groupId]);
     }
+
+    public function findActiveByNameForUser(int $userId, string $groupName): ?array
+    {
+        $statement = $this->db->prepare(
+            "SELECT id, user_id, group_name, status, created_at
+             FROM user_groups
+             WHERE user_id = :user_id AND group_name = :group_name AND status = 'Activa'
+             LIMIT 1"
+        );
+
+        $statement->execute([
+            'user_id' => $userId,
+            'group_name' => $groupName,
+        ]);
+
+        $result = $statement->fetch(\PDO::FETCH_ASSOC);
+
+        return $result !== false ? $result : null;
+    }
 }
