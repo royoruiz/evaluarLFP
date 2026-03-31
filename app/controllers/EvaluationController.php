@@ -699,14 +699,19 @@ class EvaluationController extends Controller
             exit;
         }
 
-        fputcsv($output, ['nia', 'instrument_id', 'nota']);
+        fwrite($output, "\xEF\xBB\xBF");
+        $delimiter = ';';
+        $enclosure = '"';
+        $escape = '';
+
+        fputcsv($output, ['nia', 'instrument_id', 'nota'], $delimiter, $enclosure, $escape);
         foreach ($students as $student) {
             foreach ($instruments as $instrument) {
                 fputcsv($output, [
                     (string) ($student['nia'] ?? ''),
                     (int) ($instrument['id'] ?? 0),
                     '',
-                ]);
+                ], $delimiter, $enclosure, $escape);
             }
         }
 
@@ -743,24 +748,27 @@ class EvaluationController extends Controller
             $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
         }
 
-        $header = fgetcsv($handle);
-        if (!is_array($header) || count($header) < 3) {
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
             fclose($handle);
             $_SESSION['errors']['grades'] = 'La cabecera debe ser: nia,instrument_id,nota.';
             $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
         }
 
+        $firstLine = preg_replace('/^\xEF\xBB\xBF/', '', $firstLine) ?? $firstLine;
+        $detectedDelimiter = $this->detectCsvDelimiter($firstLine);
+        $header = str_getcsv($firstLine, $detectedDelimiter);
         $header = array_map(static fn ($value) => strtolower(trim((string) $value)), $header);
-        if ($header[0] !== 'nia' || $header[1] !== 'instrument_id' || $header[2] !== 'nota') {
+        if (count($header) < 3 || $header[0] !== 'nia' || $header[1] !== 'instrument_id' || $header[2] !== 'nota') {
             fclose($handle);
-            $_SESSION['errors']['grades'] = 'La cabecera debe ser exactamente: nia,instrument_id,nota.';
+            $_SESSION['errors']['grades'] = 'La cabecera debe ser: nia;instrument_id;nota (o con comas).';
             $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
         }
 
         $group = $groupModel->findActiveByNameForUser($userId, (string) ($evaluation['class_group'] ?? ''));
         $groupId = $group !== null ? (int) $group['id'] : 0;
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $detectedDelimiter, '"', '')) !== false) {
             if (!is_array($row) || count($row) < 3) {
                 continue;
             }
@@ -948,5 +956,13 @@ class EvaluationController extends Controller
         }
 
         return $allowed;
+    }
+
+    private function detectCsvDelimiter(string $headerLine): string
+    {
+        $semicolonCount = substr_count($headerLine, ';');
+        $commaCount = substr_count($headerLine, ',');
+
+        return $semicolonCount >= $commaCount ? ';' : ',';
     }
 }

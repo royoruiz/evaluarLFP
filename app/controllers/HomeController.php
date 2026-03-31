@@ -40,7 +40,7 @@ class HomeController extends Controller
             'groups' => $groupModel->getByUserId($userId),
             'errors' => $errors,
             'old' => $old,
-            'activeTab' => in_array($activeTab, ['modules', 'evaluations', 'groups'], true) ? $activeTab : 'modules',
+            'activeTab' => in_array($activeTab, ['modules', 'evaluations', 'groups', 'notes'], true) ? $activeTab : 'modules',
             'showModuleWizard' => $showModuleWizard || !empty($errors['module_wizard'] ?? []),
         ]);
     }
