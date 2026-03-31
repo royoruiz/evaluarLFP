@@ -139,6 +139,31 @@ class App
             $controller->delete();
         });
 
+        $this->router->add('GET', '/grupos/editar', function () {
+            $controller = new GroupController();
+            $controller->edit();
+        });
+
+        $this->router->add('POST', '/grupos', function () {
+            $controller = new GroupController();
+            $controller->store();
+        });
+
+        $this->router->add('POST', '/grupos/eliminar', function () {
+            $controller = new GroupController();
+            $controller->delete();
+        });
+
+        $this->router->add('POST', '/grupos/alumnos', function () {
+            $controller = new GroupController();
+            $controller->storeStudent();
+        });
+
+        $this->router->add('POST', '/grupos/alumnos/eliminar', function () {
+            $controller = new GroupController();
+            $controller->deleteStudent();
+        });
+
         $this->router->add('GET', '/login', function () {
             $controller = new AuthController();
             $controller->showLogin();

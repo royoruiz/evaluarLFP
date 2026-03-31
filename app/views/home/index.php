@@ -2,12 +2,15 @@
 $modules = $modules ?? [];
 $evaluations = $evaluations ?? [];
 $catalogModules = $catalogModules ?? [];
+$groups = $groups ?? [];
 $activeTab = $activeTab ?? 'modules';
 $showModuleWizard = $showModuleWizard ?? false;
 $errors = $errors ?? [];
 $old = $old ?? [];
 $wizardErrors = $errors['module_wizard'] ?? [];
 $wizardOld = $old['module_wizard'] ?? [];
+$groupErrors = $errors['group_form'] ?? [];
+$groupOld = $old['group_form'] ?? [];
 ?>
 
 <style>
@@ -65,6 +68,18 @@ $wizardOld = $old['module_wizard'] ?? [];
                     aria-selected="<?= $activeTab === 'evaluations' ? 'true' : 'false' ?>"
                 >
                     Evaluaciones
+                </button>
+                <button
+                    class="nav-link w-100 text-start<?php if ($activeTab === 'groups'): ?> active<?php endif; ?>"
+                    id="tab-button-groups"
+                    data-bs-toggle="tab"
+                    data-bs-target="#tab-groups"
+                    type="button"
+                    role="tab"
+                    aria-controls="tab-groups"
+                    aria-selected="<?= $activeTab === 'groups' ? 'true' : 'false' ?>"
+                >
+                    Grupos
                 </button>
             </div>
         </div>
@@ -242,6 +257,75 @@ $wizardOld = $old['module_wizard'] ?? [];
 
                 <div class="d-flex justify-content-end">
                     <a href="/evaluaciones/nuevo" class="btn btn-primary">Añadir evaluación</a>
+                </div>
+            </div>
+
+            <div class="tab-pane fade<?php if ($activeTab === 'groups'): ?> show active<?php endif; ?>" id="tab-groups" role="tabpanel" aria-labelledby="tab-button-groups">
+                <h2 class="h5 mb-3">Grupos</h2>
+
+                <?php if (empty($groups)): ?>
+                    <div class="alert alert-info">Aún no hay grupos registrados.</div>
+                <?php else: ?>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Grupo</th>
+                                    <th scope="col" class="text-nowrap">Fecha de alta</th>
+                                    <th scope="col" class="text-end">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($groups as $group): ?>
+                                    <?php
+                                    $groupCreatedAt = $group['created_at'] ?? null;
+                                    $formattedGroupDate = $groupCreatedAt ? date('d/m/Y H:i', strtotime($groupCreatedAt)) : '—';
+                                    ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($group['group_name'] ?? '') ?></td>
+                                        <td><?= htmlspecialchars($formattedGroupDate) ?></td>
+                                        <td class="text-end">
+                                            <div class="d-inline-flex gap-2">
+                                                <a href="/grupos/editar?id=<?= (int) ($group['id'] ?? 0) ?>" class="btn btn-outline-primary btn-sm">Gestionar alumnos</a>
+                                                <form method="POST" action="/grupos/eliminar" class="d-inline">
+                                                    <input type="hidden" name="group_id" value="<?= (int) ($group['id'] ?? 0) ?>">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('¿Seguro que deseas eliminar este grupo?');">
+                                                        Eliminar
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+
+                <div class="card">
+                    <div class="card-header">Alta de grupo</div>
+                    <div class="card-body">
+                        <form method="POST" action="/grupos" class="row g-3 align-items-end">
+                            <div class="col-md-8">
+                                <label for="group_name" class="form-label">Nombre del grupo</label>
+                                <input
+                                    type="text"
+                                    id="group_name"
+                                    name="group_name"
+                                    class="form-control<?php if (!empty($groupErrors['group_name'] ?? null)): ?> is-invalid<?php endif; ?>"
+                                    value="<?= htmlspecialchars($groupOld['group_name'] ?? '') ?>"
+                                    placeholder="Ej. 1º DAW A"
+                                    required
+                                >
+                                <?php if (!empty($groupErrors['group_name'] ?? null)): ?>
+                                    <div class="invalid-feedback"><?= htmlspecialchars($groupErrors['group_name']) ?></div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-md-4 d-grid">
+                                <button type="submit" class="btn btn-primary">Alta de grupo</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
