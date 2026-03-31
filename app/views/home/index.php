@@ -236,6 +236,7 @@ $groupOld = $old['group_form'] ?? [];
                                         <td class="text-end">
                                             <div class="d-inline-flex gap-2">
                                                 <a href="/evaluaciones/editar?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-secondary btn-sm">Editar</a>
+                                                <a href="/evaluaciones/notas?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-primary btn-sm">Notas</a>
                                                 <form method="POST" action="/evaluaciones/eliminar" class="d-inline">
                                                     <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
                                                     <button

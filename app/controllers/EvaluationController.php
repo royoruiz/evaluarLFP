@@ -559,6 +559,238 @@ class EvaluationController extends Controller
         $this->redirect('/');
     }
 
+    public function grades(): void
+    {
+        $this->ensureAuthenticated();
+
+        $evaluationId = (int) ($_GET['id'] ?? 0);
+        if ($evaluationId <= 0) {
+            $_SESSION['errors']['general'] = 'No se pudo acceder a las notas de la evaluación.';
+            $this->redirect('/');
+        }
+
+        $userId = (int) $_SESSION['user_id'];
+        $evaluation = $this->requireActiveEvaluation($evaluationId, $userId);
+
+        $groupModel = new UserGroupModel();
+        $studentModel = new GroupStudentModel();
+        $unitModel = new EvaluationUnitModel();
+        $instrumentModel = new EvaluationInstrumentModel();
+        $gradeModel = new StudentInstrumentGradeModel();
+
+        $group = $groupModel->findActiveByNameForUser($userId, (string) ($evaluation['class_group'] ?? ''));
+        $students = $group !== null ? $studentModel->getActiveByGroup((int) $group['id']) : [];
+        $units = $unitModel->getByEvaluation($evaluationId);
+
+        $instrumentsByUnit = [];
+        $instrumentIds = [];
+        foreach ($units as $unit) {
+            $evaluationUnitId = (int) $unit['evaluation_unit_id'];
+            $instrumentsByUnit[$evaluationUnitId] = $instrumentModel->getByUnit($evaluationUnitId);
+            foreach ($instrumentsByUnit[$evaluationUnitId] as $instrument) {
+                $instrumentIds[(int) $instrument['id']] = true;
+            }
+        }
+
+        $grades = $gradeModel->getGradesByEvaluation($evaluationId);
+        $sessionErrors = $_SESSION['errors'] ?? [];
+        $gradeError = $sessionErrors['grades'] ?? null;
+        $generalError = $sessionErrors['general'] ?? null;
+        unset($_SESSION['errors']['grades']);
+        if ($generalError !== null) {
+            unset($_SESSION['errors']['general']);
+        }
+
+        $this->render('evaluations/grades', [
+            'title' => 'Notas de evaluación',
+            'evaluation' => $evaluation,
+            'group' => $group,
+            'students' => $students,
+            'units' => $units,
+            'instruments_by_unit' => $instrumentsByUnit,
+            'grades' => $grades,
+            'errors' => [
+                'general' => $generalError,
+                'grades' => $gradeError,
+            ],
+        ]);
+    }
+
+    public function saveGrades(): void
+    {
+        $this->ensureAuthenticated();
+
+        $evaluationId = (int) ($_POST['evaluation_id'] ?? 0);
+        if ($evaluationId <= 0) {
+            $_SESSION['errors']['general'] = 'No se pudieron guardar las notas.';
+            $this->redirect('/');
+        }
+
+        $userId = (int) $_SESSION['user_id'];
+        $evaluation = $this->requireActiveEvaluation($evaluationId, $userId);
+
+        $gradeModel = new StudentInstrumentGradeModel();
+        $allowed = $this->buildAllowedStudentInstrumentMap($evaluationId, $userId, $evaluation);
+        $submitted = $_POST['grade'] ?? [];
+        if (!is_array($submitted)) {
+            $submitted = [];
+        }
+
+        foreach ($submitted as $studentId => $byInstrument) {
+            if (!is_array($byInstrument)) {
+                continue;
+            }
+
+            $studentId = (int) $studentId;
+            foreach ($byInstrument as $instrumentId => $value) {
+                $instrumentId = (int) $instrumentId;
+                $key = $studentId . ':' . $instrumentId;
+                if (!isset($allowed[$key])) {
+                    continue;
+                }
+
+                $grade = trim((string) $value);
+                if ($grade === '') {
+                    continue;
+                }
+
+                $gradeModel->upsertGrade($studentId, $instrumentId, $grade);
+            }
+        }
+
+        $_SESSION['success'] = 'Notas guardadas correctamente.';
+        $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
+    }
+
+    public function downloadGradesTemplate(): void
+    {
+        $this->ensureAuthenticated();
+
+        $evaluationId = (int) ($_GET['id'] ?? 0);
+        if ($evaluationId <= 0) {
+            $_SESSION['errors']['general'] = 'No se pudo generar la plantilla.';
+            $this->redirect('/');
+        }
+
+        $userId = (int) $_SESSION['user_id'];
+        $evaluation = $this->requireActiveEvaluation($evaluationId, $userId);
+
+        $groupModel = new UserGroupModel();
+        $studentModel = new GroupStudentModel();
+        $unitModel = new EvaluationUnitModel();
+        $instrumentModel = new EvaluationInstrumentModel();
+
+        $group = $groupModel->findActiveByNameForUser($userId, (string) ($evaluation['class_group'] ?? ''));
+        $students = $group !== null ? $studentModel->getActiveByGroup((int) $group['id']) : [];
+        $units = $unitModel->getByEvaluation($evaluationId);
+        $instruments = [];
+        foreach ($units as $unit) {
+            foreach ($instrumentModel->getByUnit((int) $unit['evaluation_unit_id']) as $instrument) {
+                $instruments[] = $instrument;
+            }
+        }
+
+        $filename = 'plantilla_notas_evaluacion_' . $evaluationId . '.csv';
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $output = fopen('php://output', 'wb');
+        if ($output === false) {
+            exit;
+        }
+
+        fputcsv($output, ['nia', 'instrument_id', 'nota']);
+        foreach ($students as $student) {
+            foreach ($instruments as $instrument) {
+                fputcsv($output, [
+                    (string) ($student['nia'] ?? ''),
+                    (int) ($instrument['id'] ?? 0),
+                    '',
+                ]);
+            }
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    public function importGradesCsv(): void
+    {
+        $this->ensureAuthenticated();
+
+        $evaluationId = (int) ($_POST['evaluation_id'] ?? 0);
+        if ($evaluationId <= 0) {
+            $_SESSION['errors']['general'] = 'No se pudieron importar las notas.';
+            $this->redirect('/');
+        }
+
+        $userId = (int) $_SESSION['user_id'];
+        $evaluation = $this->requireActiveEvaluation($evaluationId, $userId);
+        $allowed = $this->buildAllowedStudentInstrumentMap($evaluationId, $userId, $evaluation);
+        $groupModel = new UserGroupModel();
+        $studentModel = new GroupStudentModel();
+        $gradeModel = new StudentInstrumentGradeModel();
+
+        if (!isset($_FILES['grades_csv']) || (int) ($_FILES['grades_csv']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $_SESSION['errors']['grades'] = 'Debes seleccionar un archivo CSV válido.';
+            $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
+        }
+
+        $tmpPath = (string) ($_FILES['grades_csv']['tmp_name'] ?? '');
+        $handle = fopen($tmpPath, 'rb');
+        if ($handle === false) {
+            $_SESSION['errors']['grades'] = 'No se pudo leer el archivo subido.';
+            $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
+        }
+
+        $header = fgetcsv($handle);
+        if (!is_array($header) || count($header) < 3) {
+            fclose($handle);
+            $_SESSION['errors']['grades'] = 'La cabecera debe ser: nia,instrument_id,nota.';
+            $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
+        }
+
+        $header = array_map(static fn ($value) => strtolower(trim((string) $value)), $header);
+        if ($header[0] !== 'nia' || $header[1] !== 'instrument_id' || $header[2] !== 'nota') {
+            fclose($handle);
+            $_SESSION['errors']['grades'] = 'La cabecera debe ser exactamente: nia,instrument_id,nota.';
+            $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
+        }
+
+        $group = $groupModel->findActiveByNameForUser($userId, (string) ($evaluation['class_group'] ?? ''));
+        $groupId = $group !== null ? (int) $group['id'] : 0;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            if (!is_array($row) || count($row) < 3) {
+                continue;
+            }
+
+            $nia = trim((string) ($row[0] ?? ''));
+            $instrumentId = (int) ($row[1] ?? 0);
+            $grade = trim((string) ($row[2] ?? ''));
+            if ($nia === '' || $instrumentId <= 0 || $grade === '' || $groupId <= 0) {
+                continue;
+            }
+
+            $student = $studentModel->findActiveByNia($groupId, $nia);
+            if ($student === null) {
+                continue;
+            }
+
+            $studentId = (int) $student['id'];
+            $key = $studentId . ':' . $instrumentId;
+            if (!isset($allowed[$key])) {
+                continue;
+            }
+
+            $gradeModel->upsertGrade($studentId, $instrumentId, $grade);
+        }
+
+        fclose($handle);
+        $_SESSION['success'] = 'CSV importado correctamente.';
+        $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
+    }
+
     private function ensureAuthenticated(): void
     {
         if (!isset($_SESSION['user_id'])) {
@@ -663,5 +895,58 @@ class EvaluationController extends Controller
         }
 
         return $missing;
+    }
+
+    private function requireActiveEvaluation(int $evaluationId, int $userId): array
+    {
+        $evaluationModel = new UserModuleEvaluationModel();
+        $evaluation = $evaluationModel->findForUser($evaluationId, $userId);
+
+        if ($evaluation === null) {
+            $_SESSION['errors']['general'] = 'La evaluación solicitada no existe o no tienes acceso a ella.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        if (($evaluation['status'] ?? 'Activa') !== 'Activa') {
+            $_SESSION['errors']['general'] = 'No se pueden gestionar notas de evaluaciones eliminadas.';
+            $_SESSION['active_tab'] = 'evaluations';
+            $this->redirect('/');
+        }
+
+        return $evaluation;
+    }
+
+    /**
+     * @param array<string, mixed> $evaluation
+     * @return array<string, bool>
+     */
+    private function buildAllowedStudentInstrumentMap(int $evaluationId, int $userId, array $evaluation): array
+    {
+        $groupModel = new UserGroupModel();
+        $studentModel = new GroupStudentModel();
+        $unitModel = new EvaluationUnitModel();
+        $instrumentModel = new EvaluationInstrumentModel();
+
+        $group = $groupModel->findActiveByNameForUser($userId, (string) ($evaluation['class_group'] ?? ''));
+        $students = $group !== null ? $studentModel->getActiveByGroup((int) $group['id']) : [];
+        $units = $unitModel->getByEvaluation($evaluationId);
+
+        $instrumentIds = [];
+        foreach ($units as $unit) {
+            foreach ($instrumentModel->getByUnit((int) $unit['evaluation_unit_id']) as $instrument) {
+                $instrumentIds[] = (int) $instrument['id'];
+            }
+        }
+
+        $allowed = [];
+        foreach ($students as $student) {
+            $studentId = (int) $student['id'];
+            foreach ($instrumentIds as $instrumentId) {
+                $allowed[$studentId . ':' . $instrumentId] = true;
+            }
+        }
+
+        return $allowed;
     }
 }
