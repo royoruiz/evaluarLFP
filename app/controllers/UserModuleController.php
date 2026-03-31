@@ -296,6 +296,7 @@ class UserModuleController extends Controller
                     }
 
                     $raSum = 0.0;
+                    $validatedCriteria = [];
 
                     foreach ($criteriaForOutcome as $criteriaCode => $info) {
                         if (!array_key_exists($criteriaCode, $inputsForOutcome)) {
@@ -331,6 +332,7 @@ class UserModuleController extends Controller
                         }
 
                         $shareSum = 0.0;
+                        $sharesByUnit = [];
 
                         foreach ($unitIds as $unitId) {
                             if (!array_key_exists($unitId, $unitInputs)) {
@@ -354,12 +356,7 @@ class UserModuleController extends Controller
                             }
 
                             $shareSum += $share;
-
-                            if (!isset($normalizedByUnit[$unitId])) {
-                                $normalizedByUnit[$unitId] = [];
-                            }
-
-                            $normalizedByUnit[$unitId][$criteriaCode] = round($weight * ($share / 100), 2);
+                            $sharesByUnit[(int) $unitId] = $share;
                         }
 
                         if ($hasError) {
@@ -371,6 +368,11 @@ class UserModuleController extends Controller
                             $errorMessage = 'La distribución por unidades de cada criterio debe sumar 100%.';
                             break 2;
                         }
+
+                        $validatedCriteria[$criteriaCode] = [
+                            'weight' => $weight,
+                            'shares_by_unit' => $sharesByUnit,
+                        ];
                     }
 
                     if ($hasError) {
@@ -381,6 +383,26 @@ class UserModuleController extends Controller
                         $hasError = true;
                         $errorMessage = 'Los pesos de los criterios de cada resultado de aprendizaje deben sumar 100%.';
                         break;
+                    }
+
+                    $weightsByCriterion = [];
+                    foreach ($validatedCriteria as $criteriaCode => $criteriaInfo) {
+                        $weightsByCriterion[$criteriaCode] = (float) ($criteriaInfo['weight'] ?? 0.0);
+                    }
+
+                    $normalizedCriterionWeights = $this->normalizeOutcomeCriterionWeights($weightsByCriterion);
+
+                    foreach ($validatedCriteria as $criteriaCode => $criteriaInfo) {
+                        $criterionWeight = $normalizedCriterionWeights[$criteriaCode] ?? 0.0;
+                        $sharesByUnit = $criteriaInfo['shares_by_unit'] ?? [];
+                        $distributedWeights = $this->distributeCriterionWeight($criterionWeight, $sharesByUnit);
+                        foreach ($distributedWeights as $unitId => $distributedWeight) {
+                            if (!isset($normalizedByUnit[$unitId])) {
+                                $normalizedByUnit[$unitId] = [];
+                            }
+
+                            $normalizedByUnit[$unitId][$criteriaCode] = $distributedWeight;
+                        }
                     }
                 }
 
@@ -851,5 +873,80 @@ class UserModuleController extends Controller
         }
 
         return round($weight, 4);
+    }
+
+    /**
+     * @param array<string, float> $weightsByCriterion
+     * @return array<string, float>
+     */
+    private function normalizeOutcomeCriterionWeights(array $weightsByCriterion): array
+    {
+        if (empty($weightsByCriterion)) {
+            return [];
+        }
+
+        $total = array_sum($weightsByCriterion);
+        if ($total <= 0.0) {
+            return $weightsByCriterion;
+        }
+
+        $normalized = [];
+        $criterionCodes = array_keys($weightsByCriterion);
+        $lastCode = (string) end($criterionCodes);
+        $allocated = 0.0;
+
+        foreach ($weightsByCriterion as $criteriaCode => $weight) {
+            if ((string) $criteriaCode === $lastCode) {
+                continue;
+            }
+
+            $scaled = ((float) $weight * 100) / $total;
+            $rounded = round($scaled, 2);
+            $normalized[(string) $criteriaCode] = $rounded;
+            $allocated += $rounded;
+        }
+
+        $remainder = round(100.0 - $allocated, 2);
+        if ($remainder < 0.0) {
+            $remainder = 0.0;
+        }
+        $normalized[$lastCode] = $remainder;
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int, float> $sharesByUnit
+     * @return array<int, float>
+     */
+    private function distributeCriterionWeight(float $criterionWeight, array $sharesByUnit): array
+    {
+        if (empty($sharesByUnit)) {
+            return [];
+        }
+
+        $distributed = [];
+        $unitIds = array_keys($sharesByUnit);
+        $lastUnitId = (int) end($unitIds);
+        $allocated = 0.0;
+
+        foreach ($sharesByUnit as $unitId => $share) {
+            if ((int) $unitId === $lastUnitId) {
+                continue;
+            }
+
+            $portion = round($criterionWeight * ((float) $share / 100), 2);
+            $distributed[(int) $unitId] = $portion;
+            $allocated += $portion;
+        }
+
+        $remainder = round($criterionWeight - $allocated, 2);
+        if ($remainder < 0.0) {
+            $remainder = 0.0;
+        }
+
+        $distributed[$lastUnitId] = $remainder;
+
+        return $distributed;
     }
 }
