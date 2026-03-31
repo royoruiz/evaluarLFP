@@ -6,6 +6,7 @@ $instrumentErrors = $errors['evaluation_instrument'] ?? [];
 $generalError = $errors['general'] ?? null;
 $updateOld = $old['evaluation_update'] ?? [];
 $instrumentOld = $old['evaluation_instrument'] ?? null;
+$groups = $groups ?? [];
 
 $evaluationName = $updateOld['evaluation_name'] ?? ($evaluation['evaluation_name'] ?? '');
 $evaluationYear = $updateOld['academic_year'] ?? ($evaluation['academic_year'] ?? '');
@@ -76,15 +77,20 @@ $evaluationClass = $updateOld['class_group'] ?? ($evaluation['class_group'] ?? '
 
         <div class="col-md-8">
             <label for="class-group" class="form-label">Clase o grupo</label>
-            <input
-                type="text"
-                class="form-control<?php if (!empty($updateErrors['class_group'])): ?> is-invalid<?php endif; ?>"
+            <select
+                class="form-select<?php if (!empty($updateErrors['class_group'])): ?> is-invalid<?php endif; ?>"
                 id="class-group"
                 name="class_group"
-                value="<?= htmlspecialchars($evaluationClass) ?>"
-                maxlength="255"
                 required
             >
+                <option value="">Selecciona un grupo...</option>
+                <?php foreach ($groups as $group): ?>
+                    <?php $groupName = trim((string) ($group['group_name'] ?? '')); ?>
+                    <option value="<?= htmlspecialchars($groupName) ?>" <?php if ($evaluationClass === $groupName): ?>selected<?php endif; ?>>
+                        <?= htmlspecialchars($groupName) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
             <?php if (!empty($updateErrors['class_group'])): ?>
                 <div class="invalid-feedback"><?= htmlspecialchars($updateErrors['class_group']) ?></div>
             <?php endif; ?>

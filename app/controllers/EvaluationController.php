@@ -8,6 +8,7 @@ class EvaluationController extends Controller
 
         $userId = (int) $_SESSION['user_id'];
         $moduleModel = new UserModuleModel();
+        $groupModel = new UserGroupModel();
 
         $sessionErrors = $_SESSION['errors'] ?? [];
         $sessionOld = $_SESSION['old'] ?? [];
@@ -28,6 +29,7 @@ class EvaluationController extends Controller
         $this->render('evaluations/create', [
             'title' => 'Nueva evaluación',
             'modules' => $moduleModel->getByUserId($userId),
+            'groups' => $groupModel->getByUserId($userId),
             'errors' => [
                 'general' => $generalError,
                 'evaluation_form' => $formErrors,
@@ -64,11 +66,18 @@ class EvaluationController extends Controller
         }
 
         $moduleModel = new UserModuleModel();
+        $groupModel = new UserGroupModel();
         $module = $moduleModel->findForUser($moduleId, $userId);
+        $availableGroups = $groupModel->getByUserId($userId);
+        $availableGroupNames = array_map(static fn ($group) => trim((string) ($group['group_name'] ?? '')), $availableGroups);
         if ($module === null) {
             $errors['module_id'] = 'Debes seleccionar un módulo válido.';
         } elseif ((int) ($module['units_count'] ?? 0) <= 0) {
             $errors['module_id'] = 'El módulo seleccionado no tiene unidades configuradas.';
+        }
+
+        if ($classGroup !== '' && !in_array($classGroup, $availableGroupNames, true)) {
+            $errors['class_group'] = 'Debes seleccionar un grupo existente.';
         }
 
         if (!empty($errors)) {
@@ -129,6 +138,7 @@ class EvaluationController extends Controller
         $unitCriteriaModel = new UserModuleUnitCriteriaModel();
         $instrumentModel = new EvaluationInstrumentModel();
         $instrumentCriteriaModel = new EvaluationInstrumentCriteriaModel();
+        $groupModel = new UserGroupModel();
 
         $units = $evaluationUnitModel->getByEvaluation($evaluationId);
 
@@ -204,6 +214,7 @@ class EvaluationController extends Controller
         $this->render('evaluations/edit', [
             'title' => 'Editar evaluación',
             'evaluation' => $evaluation,
+            'groups' => $groupModel->getByUserId($userId),
             'units' => $unitsData,
             'errors' => [
                 'general' => $generalError,
@@ -246,6 +257,9 @@ class EvaluationController extends Controller
         $name = trim($_POST['evaluation_name'] ?? '');
         $academicYear = trim($_POST['academic_year'] ?? '');
         $classGroup = trim($_POST['class_group'] ?? '');
+        $groupModel = new UserGroupModel();
+        $availableGroups = $groupModel->getByUserId($userId);
+        $availableGroupNames = array_map(static fn ($group) => trim((string) ($group['group_name'] ?? '')), $availableGroups);
 
         $errors = [];
 
@@ -255,6 +269,8 @@ class EvaluationController extends Controller
 
         if ($classGroup === '') {
             $errors['class_group'] = 'Debes indicar la clase o grupo.';
+        } elseif (!in_array($classGroup, $availableGroupNames, true)) {
+            $errors['class_group'] = 'Debes seleccionar un grupo existente.';
         }
 
         if (!$this->isValidAcademicYear($academicYear)) {
