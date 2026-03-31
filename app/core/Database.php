@@ -321,6 +321,36 @@ class Database
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         SQL;
 
+        $userGroupsTable = <<<SQL
+        CREATE TABLE IF NOT EXISTS user_groups (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            group_name VARCHAR(255) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'Activa',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_user_groups_user
+                FOREIGN KEY (user_id) REFERENCES users(id)
+                ON DELETE CASCADE,
+            INDEX idx_user_groups_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        SQL;
+
+        $groupStudentsTable = <<<SQL
+        CREATE TABLE IF NOT EXISTS group_students (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_group_id INT UNSIGNED NOT NULL,
+            nia VARCHAR(32) NOT NULL,
+            student_name VARCHAR(255) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'Activa',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_group_students_group
+                FOREIGN KEY (user_group_id) REFERENCES user_groups(id)
+                ON DELETE CASCADE,
+            UNIQUE KEY uniq_group_student_nia (user_group_id, nia),
+            INDEX idx_group_students_group (user_group_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        SQL;
+
         self::$connection->exec($usersTable);
         $usersRoleMigration(self::$connection);
         self::$connection->exec($userModulesTable);
@@ -336,5 +366,7 @@ class Database
         self::$connection->exec($evaluationUnitsTable);
         self::$connection->exec($evaluationInstrumentsTable);
         self::$connection->exec($evaluationInstrumentCriteriaTable);
+        self::$connection->exec($userGroupsTable);
+        self::$connection->exec($groupStudentsTable);
     }
 }

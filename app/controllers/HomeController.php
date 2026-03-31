@@ -13,6 +13,7 @@ class HomeController extends Controller
         $moduleModel = new UserModuleModel();
         $evaluationModel = new UserModuleEvaluationModel();
         $cycleModuleModel = new CycleModuleModel();
+        $groupModel = new UserGroupModel();
 
         $errors = $_SESSION['errors'] ?? [];
         $old = $_SESSION['old'] ?? [];
@@ -36,9 +37,10 @@ class HomeController extends Controller
             'modules' => $moduleModel->getByUserId($userId),
             'evaluations' => $evaluationModel->getByUserId($userId),
             'catalogModules' => $cycleModuleModel->getAll(),
+            'groups' => $groupModel->getByUserId($userId),
             'errors' => $errors,
             'old' => $old,
-            'activeTab' => in_array($activeTab, ['modules', 'evaluations'], true) ? $activeTab : 'modules',
+            'activeTab' => in_array($activeTab, ['modules', 'evaluations', 'groups'], true) ? $activeTab : 'modules',
             'showModuleWizard' => $showModuleWizard || !empty($errors['module_wizard'] ?? []),
         ]);
     }
