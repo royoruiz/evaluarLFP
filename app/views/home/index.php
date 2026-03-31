@@ -81,6 +81,18 @@ $groupOld = $old['group_form'] ?? [];
                 >
                     Grupos
                 </button>
+                <button
+                    class="nav-link w-100 text-start<?php if ($activeTab === 'notes'): ?> active<?php endif; ?>"
+                    id="tab-button-notes"
+                    data-bs-toggle="tab"
+                    data-bs-target="#tab-notes"
+                    type="button"
+                    role="tab"
+                    aria-controls="tab-notes"
+                    aria-selected="<?= $activeTab === 'notes' ? 'true' : 'false' ?>"
+                >
+                    Notas
+                </button>
             </div>
         </div>
     </aside>
@@ -236,6 +248,7 @@ $groupOld = $old['group_form'] ?? [];
                                         <td class="text-end">
                                             <div class="d-inline-flex gap-2">
                                                 <a href="/evaluaciones/editar?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-secondary btn-sm">Editar</a>
+                                                <a href="/evaluaciones/notas?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-primary btn-sm">Notas</a>
                                                 <form method="POST" action="/evaluaciones/eliminar" class="d-inline">
                                                     <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
                                                     <button
@@ -327,6 +340,41 @@ $groupOld = $old['group_form'] ?? [];
                         </form>
                     </div>
                 </div>
+            </div>
+
+            <div class="tab-pane fade<?php if ($activeTab === 'notes'): ?> show active<?php endif; ?>" id="tab-notes" role="tabpanel" aria-labelledby="tab-button-notes">
+                <h2 class="h5 mb-3">Notas</h2>
+
+                <?php if (empty($evaluations)): ?>
+                    <div class="alert alert-info">Aún no hay evaluaciones disponibles para gestionar notas.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Evaluación</th>
+                                    <th scope="col">Módulo</th>
+                                    <th scope="col">Grupo</th>
+                                    <th scope="col" class="text-end">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($evaluations as $evaluation): ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($evaluation['evaluation_name'] ?? '') ?></td>
+                                        <td><?= htmlspecialchars($evaluation['module_name'] ?? 'Sin módulo vinculado') ?></td>
+                                        <td><?= htmlspecialchars($evaluation['class_group'] ?? '-') ?></td>
+                                        <td class="text-end">
+                                            <a href="/evaluaciones/notas?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-primary btn-sm">
+                                                Abrir notas
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

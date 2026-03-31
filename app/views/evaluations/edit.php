@@ -22,16 +22,19 @@ $evaluationClass = $updateOld['class_group'] ?? ($evaluation['class_group'] ?? '
         </p>
     </div>
 
-    <form method="POST" action="/evaluaciones/eliminar" class="d-flex">
-        <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
-        <button
-            type="submit"
-            class="btn btn-outline-danger"
-            onclick="return confirm('¿Seguro que deseas eliminar esta evaluación?');"
-        >
-            Eliminar evaluación
-        </button>
-    </form>
+    <div class="d-flex gap-2">
+        <a href="/evaluaciones/notas?id=<?= (int) ($evaluation['id'] ?? 0) ?>" class="btn btn-outline-primary">Notas</a>
+        <form method="POST" action="/evaluaciones/eliminar" class="d-flex">
+            <input type="hidden" name="evaluation_id" value="<?= (int) ($evaluation['id'] ?? 0) ?>">
+            <button
+                type="submit"
+                class="btn btn-outline-danger"
+                onclick="return confirm('¿Seguro que deseas eliminar esta evaluación?');"
+            >
+                Eliminar evaluación
+            </button>
+        </form>
+    </div>
 </div>
 
 <?php if (!empty($generalError)): ?>
