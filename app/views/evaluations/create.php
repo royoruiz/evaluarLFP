@@ -1,5 +1,6 @@
 <?php
 $modules = $modules ?? [];
+$groups = $groups ?? [];
 $formErrors = $errors['evaluation_form'] ?? [];
 $formOld = $old['evaluation_form'] ?? [];
 $generalError = $errors['general'] ?? null;
@@ -56,15 +57,20 @@ $generalError = $errors['general'] ?? null;
 
         <div class="col-md-8">
             <label for="class-group" class="form-label">Clase o grupo</label>
-            <input
-                type="text"
-                class="form-control<?php if (!empty($formErrors['class_group'])): ?> is-invalid<?php endif; ?>"
+            <select
+                class="form-select<?php if (!empty($formErrors['class_group'])): ?> is-invalid<?php endif; ?>"
                 id="class-group"
                 name="class_group"
-                value="<?= htmlspecialchars($formOld['class_group'] ?? '') ?>"
-                maxlength="255"
                 required
             >
+                <option value="">Selecciona un grupo...</option>
+                <?php foreach ($groups as $group): ?>
+                    <?php $groupName = trim((string) ($group['group_name'] ?? '')); ?>
+                    <option value="<?= htmlspecialchars($groupName) ?>" <?php if (($formOld['class_group'] ?? '') === $groupName): ?>selected<?php endif; ?>>
+                        <?= htmlspecialchars($groupName) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
             <?php if (!empty($formErrors['class_group'])): ?>
                 <div class="invalid-feedback"><?= htmlspecialchars($formErrors['class_group']) ?></div>
             <?php endif; ?>
