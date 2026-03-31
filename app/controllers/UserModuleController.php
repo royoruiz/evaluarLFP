@@ -331,6 +331,7 @@ class UserModuleController extends Controller
                         }
 
                         $shareSum = 0.0;
+                        $sharesByUnit = [];
 
                         foreach ($unitIds as $unitId) {
                             if (!array_key_exists($unitId, $unitInputs)) {
@@ -354,12 +355,7 @@ class UserModuleController extends Controller
                             }
 
                             $shareSum += $share;
-
-                            if (!isset($normalizedByUnit[$unitId])) {
-                                $normalizedByUnit[$unitId] = [];
-                            }
-
-                            $normalizedByUnit[$unitId][$criteriaCode] = round($weight * ($share / 100), 2);
+                            $sharesByUnit[(int) $unitId] = $share;
                         }
 
                         if ($hasError) {
@@ -370,6 +366,15 @@ class UserModuleController extends Controller
                             $hasError = true;
                             $errorMessage = 'La distribución por unidades de cada criterio debe sumar 100%.';
                             break 2;
+                        }
+
+                        $distributedWeights = $this->distributeCriterionWeight($weight, $sharesByUnit);
+                        foreach ($distributedWeights as $unitId => $distributedWeight) {
+                            if (!isset($normalizedByUnit[$unitId])) {
+                                $normalizedByUnit[$unitId] = [];
+                            }
+
+                            $normalizedByUnit[$unitId][$criteriaCode] = $distributedWeight;
                         }
                     }
 
@@ -851,5 +856,40 @@ class UserModuleController extends Controller
         }
 
         return round($weight, 4);
+    }
+
+    /**
+     * @param array<int, float> $sharesByUnit
+     * @return array<int, float>
+     */
+    private function distributeCriterionWeight(float $criterionWeight, array $sharesByUnit): array
+    {
+        if (empty($sharesByUnit)) {
+            return [];
+        }
+
+        $distributed = [];
+        $unitIds = array_keys($sharesByUnit);
+        $lastUnitId = (int) end($unitIds);
+        $allocated = 0.0;
+
+        foreach ($sharesByUnit as $unitId => $share) {
+            if ((int) $unitId === $lastUnitId) {
+                continue;
+            }
+
+            $portion = round($criterionWeight * ((float) $share / 100), 2);
+            $distributed[(int) $unitId] = $portion;
+            $allocated += $portion;
+        }
+
+        $remainder = round($criterionWeight - $allocated, 2);
+        if ($remainder < 0.0) {
+            $remainder = 0.0;
+        }
+
+        $distributed[$lastUnitId] = $remainder;
+
+        return $distributed;
     }
 }
