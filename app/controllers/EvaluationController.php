@@ -704,15 +704,18 @@ class EvaluationController extends Controller
         $enclosure = '"';
         $escape = '';
 
-        fputcsv($output, ['nia', 'instrument_id', 'nota'], $delimiter, $enclosure, $escape);
+        $header = ['nia'];
+        foreach ($instruments as $instrument) {
+            $header[] = trim((string) ($instrument['name'] ?? '')) ?: ('instrumento_' . (int) ($instrument['id'] ?? 0));
+        }
+        fputcsv($output, $header, $delimiter, $enclosure, $escape);
+
         foreach ($students as $student) {
+            $row = [(string) ($student['nia'] ?? '')];
             foreach ($instruments as $instrument) {
-                fputcsv($output, [
-                    (string) ($student['nia'] ?? ''),
-                    (int) ($instrument['id'] ?? 0),
-                    '',
-                ], $delimiter, $enclosure, $escape);
+                $row[] = '';
             }
+            fputcsv($output, $row, $delimiter, $enclosure, $escape);
         }
 
         fclose($output);
@@ -759,39 +762,95 @@ class EvaluationController extends Controller
         $detectedDelimiter = $this->detectCsvDelimiter($firstLine);
         $header = str_getcsv($firstLine, $detectedDelimiter);
         $header = array_map(static fn ($value) => strtolower(trim((string) $value)), $header);
-        if (count($header) < 3 || $header[0] !== 'nia' || $header[1] !== 'instrument_id' || $header[2] !== 'nota') {
+        $isLegacyFormat = count($header) >= 3
+            && $header[0] === 'nia'
+            && $header[1] === 'instrument_id'
+            && $header[2] === 'nota';
+        $isMatrixFormat = count($header) >= 2 && $header[0] === 'nia';
+        if (!$isLegacyFormat && !$isMatrixFormat) {
             fclose($handle);
-            $_SESSION['errors']['grades'] = 'La cabecera debe ser: nia;instrument_id;nota (o con comas).';
+            $_SESSION['errors']['grades'] = 'La cabecera debe comenzar por "nia". Usa la plantilla descargada para evitar errores.';
             $this->redirect('/evaluaciones/notas?id=' . $evaluationId);
         }
 
         $group = $groupModel->findActiveByNameForUser($userId, (string) ($evaluation['class_group'] ?? ''));
         $groupId = $group !== null ? (int) $group['id'] : 0;
 
-        while (($row = fgetcsv($handle, 0, $detectedDelimiter, '"', '')) !== false) {
-            if (!is_array($row) || count($row) < 3) {
-                continue;
+        if ($isLegacyFormat) {
+            while (($row = fgetcsv($handle, 0, $detectedDelimiter, '"', '')) !== false) {
+                if (!is_array($row) || count($row) < 3) {
+                    continue;
+                }
+
+                $nia = trim((string) ($row[0] ?? ''));
+                $instrumentId = (int) ($row[1] ?? 0);
+                $grade = trim((string) ($row[2] ?? ''));
+                if ($nia === '' || $instrumentId <= 0 || $grade === '' || $groupId <= 0) {
+                    continue;
+                }
+
+                $student = $studentModel->findActiveByNia($groupId, $nia);
+                if ($student === null) {
+                    continue;
+                }
+
+                $studentId = (int) $student['id'];
+                $key = $studentId . ':' . $instrumentId;
+                if (!isset($allowed[$key])) {
+                    continue;
+                }
+
+                $gradeModel->upsertGrade($studentId, $instrumentId, $grade);
+            }
+        } else {
+            $unitModel = new EvaluationUnitModel();
+            $instrumentModel = new EvaluationInstrumentModel();
+            $units = $unitModel->getByEvaluation($evaluationId);
+            $instruments = [];
+            foreach ($units as $unit) {
+                foreach ($instrumentModel->getByUnit((int) $unit['evaluation_unit_id']) as $instrument) {
+                    $instruments[] = $instrument;
+                }
+            }
+            $instrumentIdsByColumn = [];
+            foreach ($instruments as $idx => $instrument) {
+                $instrumentIdsByColumn[$idx + 1] = (int) ($instrument['id'] ?? 0);
             }
 
-            $nia = trim((string) ($row[0] ?? ''));
-            $instrumentId = (int) ($row[1] ?? 0);
-            $grade = trim((string) ($row[2] ?? ''));
-            if ($nia === '' || $instrumentId <= 0 || $grade === '' || $groupId <= 0) {
-                continue;
-            }
+            while (($row = fgetcsv($handle, 0, $detectedDelimiter, '"', '')) !== false) {
+                if (!is_array($row) || count($row) < 2) {
+                    continue;
+                }
 
-            $student = $studentModel->findActiveByNia($groupId, $nia);
-            if ($student === null) {
-                continue;
-            }
+                $nia = trim((string) ($row[0] ?? ''));
+                if ($nia === '' || $groupId <= 0) {
+                    continue;
+                }
 
-            $studentId = (int) $student['id'];
-            $key = $studentId . ':' . $instrumentId;
-            if (!isset($allowed[$key])) {
-                continue;
-            }
+                $student = $studentModel->findActiveByNia($groupId, $nia);
+                if ($student === null) {
+                    continue;
+                }
 
-            $gradeModel->upsertGrade($studentId, $instrumentId, $grade);
+                $studentId = (int) $student['id'];
+                foreach ($instrumentIdsByColumn as $columnIndex => $instrumentId) {
+                    if ($instrumentId <= 0) {
+                        continue;
+                    }
+
+                    $grade = trim((string) ($row[$columnIndex] ?? ''));
+                    if ($grade === '') {
+                        continue;
+                    }
+
+                    $key = $studentId . ':' . $instrumentId;
+                    if (!isset($allowed[$key])) {
+                        continue;
+                    }
+
+                    $gradeModel->upsertGrade($studentId, $instrumentId, $grade);
+                }
+            }
         }
 
         fclose($handle);
